@@ -5,7 +5,7 @@ issueTrackerURL = "https://github.com/RhettL/multi-village-selector/issues"
 
 [[mods]]
 modId = "multivillageselector"
-version = "1.0.0"
+version = "0.1.0"
 displayName = "Multi Village Selector"
 updateJSONURL = "https://github.com/RhettL/multi-village-selector/releases/latest"
 displayURL = "https://github.com/RhettL/multi-village-selector"
