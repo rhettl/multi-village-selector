@@ -1,0 +1,50 @@
+// ===========================================
+//  Multi Village Selector (MVS) - TEST CONFIG
+//  Minimal configuration for testing basic functionality
+// ===========================================
+
+{
+  enabled: true,
+  debug_logging: true,
+
+  // ==== WHAT TO REPLACE ====
+  // Intercept vanilla villages only
+  replace_of: [
+    "minecraft:village_plains",
+    "minecraft:village_desert",
+    "minecraft:village_savanna",
+    "minecraft:village_snowy",
+    "minecraft:village_taiga",
+  ],
+
+  // ==== WHAT TO PREVENT ====
+  // Nothing blocked in test mode
+  prevent_spawn: [],
+
+  // ==== WHAT TO REPLACE WITH ====
+  // Replace all villages with end_city (doesn't spawn in overworld naturally)
+  // If we see an end city in overworld, we know the replacement worked!
+  replace_with: {
+    plains: [
+      { structure: "minecraft:end_city", weight: 100 },
+    ],
+    desert: [
+      { structure: "minecraft:end_city", weight: 100 },
+    ],
+    savanna: [
+      { structure: "minecraft:end_city", weight: 100 },
+    ],
+    snowy: [
+      { structure: "minecraft:end_city", weight: 100 },
+    ],
+    taiga: [
+      { structure: "minecraft:end_city", weight: 100 },
+    ],
+    DEFAULT: [
+      { structure: "minecraft:end_city", weight: 100 },
+    ],
+  },
+
+  // ==== BIOME CATEGORY OVERRIDES ====
+  biome_category_overrides: {},
+}

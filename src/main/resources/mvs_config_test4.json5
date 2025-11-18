@@ -1,0 +1,51 @@
+// ===========================================
+//  MVS Test Config #4: CTOV Config Respect Test
+//  Purpose: Verify CTOV respects its config toggles
+// ===========================================
+//
+// TEST SETUP:
+// 1. Copy test_configs/ctov-common-ENABLED.toml to config/ctov-common.toml
+// 2. Enable all village mods
+// 3. Use build-test4.sh to deploy this config
+// 4. Create NEW world, check logs
+//
+// EXPECTED BEHAVIOR IF CTOV RESPECTS CONFIG:
+// - Should see: [MVS-DEBUG] Structure attempt: ctov:*/village_*
+// - Should see: ===== MVS: PREVENTED STRUCTURE SPAWN =====
+// - MVS should have to actively block CTOV villages
+//
+// IF CTOV DOESN'T RESPECT CONFIG:
+// - No CTOV spawn attempts even with config enabled
+//
+// ===========================================
+
+{
+  enabled: true,
+  debug_logging: true,
+
+  // Intercept vanilla villages
+  replace_of: [
+    "minecraft:village_plains",
+    "minecraft:village_desert",
+    "minecraft:village_savanna",
+    "minecraft:village_snowy",
+    "minecraft:village_taiga",
+  ],
+
+  // Block CTOV villages (to test if they even try to spawn)
+  prevent_spawn: [
+    "ctov:large/*",
+    "ctov:medium/*",
+    "ctov:small/*",
+  ],
+
+  // Simple replacement pool
+  replace_with: {
+    DEFAULT: [
+      { structure: "minecraft:village_plains", weight: 50 },
+      { structure: "minecraft:village_desert", weight: 50 },
+    ]
+  },
+
+  biome_category_overrides: {}
+}

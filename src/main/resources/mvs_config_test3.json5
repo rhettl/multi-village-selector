@@ -1,0 +1,54 @@
+// ===========================================
+//  MVS Test Config #3: Vanilla + CTOV Only
+//  Purpose: Isolated testing of vanilla/CTOV replacement
+// ===========================================
+//
+// TEST SETUP:
+// 1. Disable all village mods except CTOV in mod loader
+// 2. Disable CTOV village spawning in CTOV config
+// 3. Use build-test3.sh to deploy this config
+// 4. Spacing configs set to 6/3 for very rapid spawning
+//
+// EXPECTED BEHAVIOR:
+// - Vanilla villages spawn (CTOV disabled)
+// - MVS intercepts vanilla villages
+// - Replaces with 50/50 mix of vanilla and CTOV villages
+//
+// ===========================================
+
+{
+  enabled: true,
+  debug_logging: true,
+
+  // Intercept vanilla villages
+  replace_of: [
+    "minecraft:village_plains",
+    "minecraft:village_desert",
+    "minecraft:village_savanna",
+    "minecraft:village_snowy",
+    "minecraft:village_taiga",
+  ],
+
+  // Don't prevent anything - we want to see what spawns
+  prevent_spawn: [],
+
+  // Replace with ONLY vanilla and CTOV - equal weights for fair comparison
+  replace_with: {
+    DEFAULT: [
+      // Vanilla villages (weight: 50 each = 250 total)
+      { structure: "minecraft:village_plains", weight: 50 },
+      { structure: "minecraft:village_desert", weight: 50 },
+      { structure: "minecraft:village_savanna", weight: 50 },
+      { structure: "minecraft:village_snowy", weight: 50 },
+      { structure: "minecraft:village_taiga", weight: 50 },
+
+      // CTOV villages - all sizes (weight: ~250 total to match vanilla)
+      { pattern: "ctov:small/village_*", weight: 85 },
+      { pattern: "ctov:medium/village_*", weight: 85 },
+      { pattern: "ctov:large/village_*", weight: 85 },
+    ],
+  },
+
+  // No biome overrides - using DEFAULT for everything
+  biome_category_overrides: {}
+}

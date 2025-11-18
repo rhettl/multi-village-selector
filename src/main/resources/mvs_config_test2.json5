@@ -1,0 +1,55 @@
+// ===========================================
+//  MVS Test Config #2: BCA + Vanilla Only
+//  Purpose: Isolated testing of BCA/vanilla replacement
+// ===========================================
+//
+// TEST SETUP:
+// 1. Disable all village mods except BCA in mod loader
+// 2. Use build-test2.sh to deploy this config
+// 3. Spacing configs set to 10/6 for rapid spawning
+//
+// EXPECTED BEHAVIOR:
+// - BCA villages spawn (they override vanilla structure set)
+// - MVS intercepts BCA villages
+// - Replaces with 50/50 mix of BCA and vanilla villages
+//
+// ===========================================
+
+{
+  enabled: true,
+  debug_logging: true,
+
+  // Intercept BCA villages (they override vanilla)
+  replace_of: [
+    "bca:village/default_small",
+    "bca:village/default_mid",
+    "bca:village/default_large",
+    "bca:village/dark_mid",
+    "bca:village/dark_small",
+  ],
+
+  // Don't prevent anything - we want to see what spawns
+  prevent_spawn: [],
+
+  // Replace with ONLY BCA and vanilla - equal weights for fair comparison
+  replace_with: {
+    DEFAULT: [
+      // Vanilla villages (weight: 50 each = 250 total)
+      { structure: "minecraft:village_plains", weight: 50 },
+      { structure: "minecraft:village_desert", weight: 50 },
+      { structure: "minecraft:village_savanna", weight: 50 },
+      { structure: "minecraft:village_snowy", weight: 50 },
+      { structure: "minecraft:village_taiga", weight: 50 },
+
+      // BCA villages (weight: 50 each = 250 total)
+      { structure: "bca:village/default_small", weight: 50 },
+      { structure: "bca:village/default_mid", weight: 50 },
+      { structure: "bca:village/default_large", weight: 50 },
+      { structure: "bca:village/dark_small", weight: 50 },
+      { structure: "bca:village/dark_mid", weight: 50 },
+    ],
+  },
+
+  // No biome overrides - using DEFAULT for everything
+  biome_category_overrides: {}
+}

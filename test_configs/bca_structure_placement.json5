@@ -1,0 +1,11 @@
+/*
+TEST CONFIG for very rapid village spawning
+spacing: 6, separation: 3 = villages every ~96-192 blocks
+*/
+{
+	"villages": {
+		"salt": 10387312,
+		"separation": 3,
+		"spacing": 6
+	}
+}

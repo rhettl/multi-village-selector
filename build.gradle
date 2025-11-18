@@ -1,0 +1,60 @@
+plugins {
+    id 'java'
+    id 'net.neoforged.moddev' version '2.0.36-beta'
+}
+
+version = '1.0.0'
+group = 'com.rhett.multivillageselector'
+
+base {
+    archivesName = 'multivillageselector'
+}
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    mavenCentral()
+}
+
+neoForge {
+    version = '21.1.80'
+
+    runs {
+        client {
+            client()
+            programArgument '--mixin.config=multi_village_selector.mixins.json'
+        }
+        server {
+            server()
+            programArgument '--mixin.config=multi_village_selector.mixins.json'
+        }
+    }
+
+    mods {
+        multivillageselector {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+dependencies {
+    // Mixin dependencies are provided by NeoForge
+    compileOnly 'org.spongepowered:mixin:0.8.5'
+    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
+
+    // JSON5 parser - bundle into mod JAR
+    implementation 'de.marhali:json5-java:3.0.0'
+    jarJar(group: 'de.marhali', name: 'json5-java', version: '[3.0.0,4.0.0)')
+
+    // JUnit 5 for testing
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
+
+    // Mockito for mocking Minecraft classes in tests
+    testImplementation 'org.mockito:mockito-core:5.11.0'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
+}
+
+test {
+    useJUnitPlatform()
+}

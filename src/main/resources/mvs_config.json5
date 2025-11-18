@@ -1,0 +1,361 @@
+// ===========================================
+//  Multi Village Selector (MVS) Config
+//  Documentation: See REPLACEMENT_DESIGN_V2.md
+// ===========================================
+//
+// ==== SETUP INSTRUCTIONS ====
+//
+// ⚠️ IMPORTANT: If you have CTOV installed, you MUST disable their
+// village generation in their configs, or vanilla villages won't spawn!
+//
+// === CTOV Setup ===
+// Edit: config/ctov-common.toml
+//
+// [structures]
+//   generatesmallVillage = false
+//   generatemediumVillage = false
+//   generatelargeVillage = false
+//
+// === BCA (Cobblemon Additions) ===
+// BCA overrides vanilla villages at the structure set level, so MVS intercepts
+// BCA villages directly instead of vanilla villages. No config changes needed!
+//
+// NOTE: BCA is changing their village replacement strategy in an upcoming release.
+// This config may need updates when that happens.
+//
+// ===========================================
+
+{
+  enabled: true,
+  debug_logging: true,
+
+  // ==== WHAT TO REPLACE ====
+  // List vanilla/modded structures to intercept and replace.
+  // These will be replaced with structures from the replace_with pools.
+  //
+  // ⚠️ IMPORTANT: See "Understanding Structure Pools" section at bottom of config!
+  //
+  // RECOMMENDED: Only include vanilla villages here unless you understand the
+  // implications of multiple spawn salts/distances (see bottom).
+  //
+  // Supports wildcards: * matches any text
+  // Examples:
+  //   'minecraft:village_*' = all vanilla villages
+  //   '*:village_plains' = any mod's plains village
+  //   'some_mod:*' = everything from some_mod
+
+  replace_of: [
+    "minecraft:village_plains",
+    "minecraft:village_desert",
+    "minecraft:village_savanna",
+    "minecraft:village_snowy",
+    "minecraft:village_taiga",
+    // BCA villages (they override vanilla villages at structure set level)
+    "bca:village/default_small",
+    "bca:village/default_mid",
+    "bca:village/default_large",
+    "bca:village/dark_mid",
+    "bca:village/dark_small",
+  ],
+
+  // ==== WHAT TO PREVENT ====
+  // List structures to completely block from spawning.
+  // These structures will NOT spawn naturally, but CAN be used as replacements.
+  // Use this to prevent modded villages from spawning on their own.
+  // Without this, you'd get BOTH replaced vanilla villages AND natural modded villages!
+
+  prevent_spawn: [
+    "ctov:large/*",
+    "ctov:medium/*",
+    "ctov:small/*",
+    // BCA villages are in replace_of, not prevent_spawn (we intercept them)
+    "towns_and_towers:village_*",
+    "towns_and_towers:exclusives/village_classic",
+    "towns_and_towers:exclusives/village_rustic",
+    "towns_and_towers:exclusives/village_tudor",
+    "towns_and_towers:exclusives/village_swedish",
+    "towns_and_towers:exclusives/village_iberian",
+    "towns_and_towers:exclusives/village_nilotic",
+    "towns_and_towers:exclusives/village_mediterranean",
+    "terralith:fortified_*_village",
+    "joshie:village_ocean",
+  ],
+
+  // ==== WHAT TO REPLACE WITH ====
+  // Define replacement villages per biome category.
+  //
+  // Each entry can be:
+  //   { structure: "mod:village_name", weight: X }  - Specific structure
+  //   { pattern: "mod:village_*", weight: X }       - Wildcard pattern
+  //   { empty: true, weight: X }                    - Weighted no-spawn (for sparse biomes)
+  //
+  // The "empty" option cancels spawning with the specified weight. Useful for:
+  //   - Ocean biomes (villages should be rare)
+  //   - Mushroom biomes (very rare villages)
+  //   - Any biome where villages should spawn less frequently
+  //
+  // Example: ocean: [
+  //   { structure: "mod:ocean_village", weight: 20 },
+  //   { empty: true, weight: 80 }  // 80% chance nothing spawns
+  // ]
+  //
+  replace_with: {
+    // === PLAINS ===
+    // Includes: plains, meadow, flower_forest, forest, birch_forest
+    plains: [
+      { structure: "minecraft:village_plains", weight: 10 },
+      { pattern: "towns_and_towers:village_*plains", weight: 30 },
+      { pattern: "towns_and_towers:village_meadow", weight: 30 },
+      { pattern: "towns_and_towers:village_*forest", weight: 30 },
+      { pattern: "bca:village/default_*", weight: 25 },
+      { structure: "terralith:fortified_village", weight: 20 },
+      { structure: "towns_and_towers:exclusives/village_wandering_trader_camp", weight: 5 },
+      { pattern: "towns_and_towers:exclusives/village_classic", weight: 25 },
+      { pattern: "towns_and_towers:exclusives/village_rustic", weight: 25 },
+      { pattern: "towns_and_towers:exclusives/village_tudor", weight: 25 },
+      { pattern: "towns_and_towers:exclusives/village_swedish", weight: 25 },
+      { pattern: "ctov:*/village_plains", weight: 30 },
+      { pattern: "ctov:*/village_plains_fortified", weight: 25 },
+      { pattern: "ctov:*/village_mountain", weight: 20 },
+    ],
+
+    // === DESERT ===
+    // Includes: desert, badlands, mesa, hot/arid biomes
+    desert: [
+      { structure: "minecraft:village_desert", weight: 10 },
+      { pattern: "towns_and_towers:village_*badlands", weight: 30 },
+      { structure: "terralith:fortified_desert_village", weight: 25 },
+      { pattern: "towns_and_towers:exclusives/village_nilotic", weight: 30 },
+      { pattern: "towns_and_towers:exclusives/village_mediterranean", weight: 30 },
+      { pattern: "ctov:*/village_desert", weight: 30 },
+      { pattern: "ctov:*/village_desert_oasis", weight: 25 },
+      { pattern: "ctov:*/village_mesa", weight: 30 },
+      { pattern: "ctov:*/village_mesa_fortified", weight: 25 },
+    ],
+
+    // === SAVANNA ===
+    savanna: [
+      { structure: "minecraft:village_savanna", weight: 10 },
+      { pattern: "towns_and_towers:village_savanna*", weight: 30 },
+      { structure: "towns_and_towers:exclusives/village_wandering_trader_camp", weight: 5 },
+      { pattern: "ctov:*/village_savanna", weight: 30 },
+      { pattern: "ctov:*/village_savanna_na", weight: 30 },
+    ],
+
+    // === SNOWY ===
+    // Includes: snowy plains, ice spikes, frozen peaks, grove
+    snowy: [
+      { structure: "minecraft:village_snowy", weight: 10 },
+      { pattern: "towns_and_towers:village_snowy*", weight: 30 },
+      { pattern: "towns_and_towers:village_grove", weight: 30 },
+      { pattern: "ctov:*/village_snowy_igloo", weight: 30 },
+      { pattern: "ctov:*/village_christmas", weight: 20 },
+      { pattern: "ctov:*/village_mountain_alpine", weight: 25 },
+    ],
+
+    // === TAIGA ===
+    // Includes: taiga, old growth taiga, coniferous forests
+    taiga: [
+      { structure: "minecraft:village_taiga", weight: 10 },
+      { pattern: "towns_and_towers:village_*taiga", weight: 30 },
+      { pattern: "ctov:*/village_taiga", weight: 30 },
+      { pattern: "ctov:*/village_taiga_fortified", weight: 25 },
+    ],
+
+    // === JUNGLE ===
+    jungle: [
+      { pattern: "towns_and_towers:village_*jungle", weight: 30 },
+      { pattern: "ctov:*/village_jungle", weight: 30 },
+      { pattern: "ctov:*/village_jungle_tree", weight: 25 },
+    ],
+
+    // === SWAMP ===
+    swamp: [
+      { pattern: "towns_and_towers:village_swamp", weight: 50 },
+      { pattern: "ctov:*/village_swamp", weight: 50 },
+      { pattern: "ctov:*/village_swamp_fortified", weight: 40 },
+    ],
+
+    // === OCEAN ===
+    ocean: [
+      { pattern: "joshie:village_ocean", weight: 20 },
+      { pattern: "towns_and_towers:village_ocean", weight: 20 },
+      { empty: true, weight: 60 }, // 60% chance no village spawns (ocean villages rare)
+    ],
+
+    // === BEACH ===
+    beach: [
+      { pattern: "towns_and_towers:village_beach", weight: 50 },
+      { pattern: "ctov:*/village_beach", weight: 50 },
+    ],
+
+    // === MUSHROOM ===
+    mushroom: [
+      { pattern: "towns_and_towers:village_mushroom_fields", weight: 10 },
+      { pattern: "ctov:*/village_mushroom", weight: 10 },
+      { empty: true, weight: 80 }, // 80% chance no village spawns (mushroom villages very rare)
+    ],
+
+    // === DARK FOREST ===
+    dark_forest: [
+      { pattern: "bca:village/dark_*", weight: 50 },
+      { pattern: "bca:village/witch_hut", weight: 30 },
+      { pattern: "ctov:*/village_dark_forest", weight: 50 },
+    ],
+
+    // === FALLBACK ===
+    // Used when biome doesn't match any specific category
+    DEFAULT: [
+      { pattern: "bca:village/default_*", weight: 20 },
+      { pattern: "towns_and_towers:exclusives/village_classic", weight: 15 },
+      { pattern: "ctov:*/village_underground", weight: 10 },
+    ],
+  },
+
+  // ==== BIOME CATEGORY OVERRIDES ====
+  // Manually map specific biomes to categories.
+  // Use this for modded biomes that auto-detection misses.
+  // Format: 'mod:biome_name': 'category'
+  biome_category_overrides: {
+    // Examples (uncomment to use):
+    // "biomesoplenty:lavender_field": "plains",
+    // "terralith:yellowstone": "savanna",
+    // "wwoo:autumnal_woods": "taiga",
+  },
+}
+
+// ===========================================
+//  Understanding Structure Pools
+// ===========================================
+//
+// ⚠️ IMPORTANT: Read this if you want to add modded villages to replace_of!
+//
+// ### What Are Structure Pools?
+//
+// Each village mod (BCA, CTOV, Towns & Towers, etc.) has its own independent
+// "spawn pool" with unique spawn settings configured in their own structure files:
+//
+//   - Spawn Salt: A number that determines WHERE villages spawn
+//   - Spawn Distance: How far apart villages spawn
+//   - Spawn Configuration: Settings controlled by each mod
+//
+// These pools are COMPLETELY SEPARATE and controlled by each mod's configuration,
+// NOT by MVS. This mod can only INTERCEPT and REPLACE spawn attempts.
+//
+// ### The Problem with Merging Pools
+//
+// You might think: "Why not merge vanilla + CTOV into one pool?"
+//
+// The issue is that we CAN'T actually merge pools because:
+//
+//   1. Each mod tries to spawn villages at DIFFERENT coordinates
+//      - Vanilla might try at X=100, Z=200
+//      - CTOV might try at X=500, Z=-300
+//      - They NEVER overlap in the same locations
+//
+//   2. Each mod has DIFFERENT spawn frequencies
+//      - Vanilla: ~1 village per 1000 blocks
+//      - CTOV: ~1 village per 800 blocks (example)
+//      - We can't control these distances from MVS
+//
+//   3. Spawn attempts happen INDEPENDENTLY at generation time
+//      - We intercept one spawn attempt at a time
+//      - We can't "wait" for other mods to also try the same location
+//      - By the time we process one attempt, others have already happened elsewhere
+//
+// Result: If you add CTOV to replace_of, you'll get:
+//   - Vanilla village locations → replaced with random selection
+//   - CTOV village locations → replaced with random selection
+//   - These are DIFFERENT locations on the map!
+//
+// You're NOT combining the pools, you're just replacing BOTH pools at their
+// own separate spawn locations.
+//
+// ### Recommended Configuration
+//
+// **RECOMMENDED: Only vanilla villages in replace_of**
+//
+// replace_of: [
+//   "minecraft:village_plains",
+//   "minecraft:village_desert",
+//   "minecraft:village_savanna",
+//   "minecraft:village_snowy",
+//   "minecraft:village_taiga",
+// ]
+//
+// prevent_spawn: [
+//   "bca:village/*",
+//   "ctov:*/*",
+//   "towns_and_towers:village_*",
+//   // ... all modded villages
+// ]
+//
+// This gives you:
+//   ✅ Vanilla village locations with variety from all mods
+//   ✅ No duplicate modded villages spawning naturally
+//   ✅ Predictable village density (vanilla spacing)
+//   ✅ Simple configuration
+//
+// ### Advanced Configuration (Use with Caution!)
+//
+// If you UNDERSTAND the implications, you can add modded villages to replace_of:
+//
+// replace_of: [
+//   "minecraft:village_plains",
+//   "minecraft:village_desert",
+//   "ctov:large/*",
+//   "ctov:medium/*",
+// ]
+//
+// prevent_spawn: [
+//   "ctov:large/*",
+//   "ctov:medium/*",
+//   "bca:village/*",
+//   "towns_and_towers:village_*",
+// ]
+//
+// This gives you:
+//   ⚠️ Vanilla village locations → random replacements
+//   ⚠️ CTOV large village locations → random replacements
+//   ⚠️ CTOV medium village locations → random replacements
+//   ⚠️ MORE total villages on the map (vanilla + CTOV spawn points)
+//   ⚠️ Different village densities in different areas
+//   ⚠️ Complex interaction between spawn salts
+//
+// ### Priority Rules
+//
+// When a structure matches multiple lists, priority is:
+//
+//   1. prevent_spawn → Structure is BLOCKED completely
+//   2. replace_of → Structure is INTERCEPTED and REPLACED
+//   3. Neither → Structure spawns naturally (not intercepted)
+//
+// If a structure is in BOTH lists, prevent_spawn takes priority and it's blocked.
+//
+// ### Examples
+//
+// Example 1: Vanilla Only (Recommended)
+// - replace_of: minecraft:village_*
+// - prevent_spawn: All modded villages
+// - Result: Only vanilla spawn locations, with variety from all mods
+//
+// Example 2: Vanilla + One Modded Pool
+// - replace_of: minecraft:village_*, ctov:large/*
+// - prevent_spawn: ctov:large/*, and all other modded villages
+// - Result: Vanilla locations + CTOV large locations, both with variety
+// - Note: More villages total on the map!
+//
+// Example 3: Let Modded Villages Spawn Naturally (NOT recommended)
+// - replace_of: minecraft:village_*
+// - prevent_spawn: (empty)
+// - Result: Vanilla gets variety, but modded villages ALSO spawn naturally
+// - Problem: You'll see tons of villages everywhere!
+//
+// ### Summary
+//
+// - Use vanilla-only in replace_of for predictable, varied villages
+// - Use prevent_spawn to block modded villages from their natural spawns
+// - Only add modded villages to replace_of if you want MORE village locations
+// - Structures in prevent_spawn can still appear in replace_with pools
+//
+// ===========================================

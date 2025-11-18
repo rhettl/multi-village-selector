@@ -1,0 +1,60 @@
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Eclipse
+.classpath
+.project
+.settings/
+bin/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+out/
+
+# VSCode
+.vscode/
+
+# macOS
+.DS_Store
+
+# Minecraft run directories (if you test locally)
+run/
+logs/
+minecraft/
+
+# Temporary files
+*.log
+*.tmp
+
+# Build artifacts not needed in source control
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# Development notes (personal/AI documentation)
+BIOME_CATEGORIZATION.md
+BUILD_INSTRUCTIONS.md
+DEBUG_LOGGING_GUIDE.md
+HOW_IT_WORKS.md
+IMPLEMENTATION_NOTES.md
+PROJECT_SUMMARY.md
+REPLACEMENT_DESIGN_V2.md
+STAGE2_STATUS.md
+TEST_SPECIFICATION.md
+TEST_SUMMARY.md
+VILLAGE_BIOME_ANALYSIS.md
+
+# Test scripts (for local testing only)
+build-test*.sh
+registry_dumps.txt
+
+# Screenshots
+*.png
+*.jpg
+*.jpeg
