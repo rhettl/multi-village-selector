@@ -31,6 +31,7 @@ public class MVSConfig {
     public static Map<String, List<WeightedStructure>> biomeReplacements = new HashMap<>();
     public static Map<String, String> biomeCategoryOverrides = new HashMap<>();
     public static boolean debugLogging = false;
+    public static boolean showFirstLaunchMessage = false; // Default false, only true in bundled default
 
     // Track whether structures have been discovered yet
     private static boolean structuresDiscovered = false;
@@ -128,8 +129,28 @@ public class MVSConfig {
             String json5Content = Files.readString(configFile, StandardCharsets.UTF_8);
             Json5Object json = JSON5.parse(json5Content).getAsJson5Object();
 
-            enabled = json.get("enabled").getAsBoolean();
-            debugLogging = json.get("debug_logging").getAsBoolean();
+            // Load enabled (required field, default to true if missing)
+            if (json.has("enabled")) {
+                enabled = json.get("enabled").getAsBoolean();
+            } else {
+                MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: 'enabled' field missing - defaulting to true");
+                enabled = true;
+            }
+
+            // Load debug_logging (required field, default to false if missing)
+            if (json.has("debug_logging")) {
+                debugLogging = json.get("debug_logging").getAsBoolean();
+            } else {
+                MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: 'debug_logging' field missing - defaulting to false");
+                debugLogging = false;
+            }
+
+            // Load show_first_launch_message if present (only in bundled default)
+            if (json.has("show_first_launch_message")) {
+                showFirstLaunchMessage = json.get("show_first_launch_message").getAsBoolean();
+            } else {
+                showFirstLaunchMessage = false; // Generated configs don't have this field
+            }
 
             // Load biome category overrides if present
             if (json.has("biome_category_overrides")) {
@@ -139,10 +160,24 @@ public class MVSConfig {
                 }
             }
 
-            // Load replace_of patterns
+            // Load replace_of patterns (required field)
+            if (!json.has("replace_of")) {
+                MultiVillageSelector.LOGGER.error("⚠️  MVS Config ERROR: 'replace_of' field is MISSING!");
+                MultiVillageSelector.LOGGER.error("    This field is required. Add at minimum:");
+                MultiVillageSelector.LOGGER.error("    \"replace_of\": [\"minecraft:village_plains\", \"minecraft:village_desert\", ...]");
+                MultiVillageSelector.LOGGER.error("    Mod will be DISABLED until config is fixed.");
+                enabled = false;
+                return;
+            }
+
             Json5Array replaceOf = json.get("replace_of").getAsJson5Array();
             for (Json5Element element : replaceOf) {
                 replaceOfPatterns.add(element.getAsString());
+            }
+
+            // Warn if replace_of is empty
+            if (replaceOfPatterns.isEmpty()) {
+                MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: 'replace_of' is empty - mod will have no effect!");
             }
 
             // Load prevent_spawn patterns (optional, for blocking modded villages)
@@ -154,14 +189,65 @@ public class MVSConfig {
             }
 
             // Load replace_with entries (raw, before structure discovery)
+            if (!json.has("replace_with")) {
+                MultiVillageSelector.LOGGER.error("⚠️  MVS Config ERROR: 'replace_with' field is MISSING!");
+                MultiVillageSelector.LOGGER.error("    This field is required. Add at minimum:");
+                MultiVillageSelector.LOGGER.error("    \"replace_with\": { \"DEFAULT\": [{ \"structure\": \"minecraft:village_plains\", \"weight\": 10 }] }");
+                MultiVillageSelector.LOGGER.error("    Mod will be DISABLED until config is fixed.");
+                enabled = false;
+                return;
+            }
+
             Json5Object replaceWith = json.get("replace_with").getAsJson5Object();
+
+            // Warn if replace_with is empty
+            if (replaceWith.keySet().isEmpty()) {
+                MultiVillageSelector.LOGGER.error("⚠️  MVS Config ERROR: 'replace_with' is empty - no villages can spawn!");
+                MultiVillageSelector.LOGGER.error("    Add at least a DEFAULT category or specific biome categories.");
+                MultiVillageSelector.LOGGER.error("    Mod will be DISABLED until config is fixed.");
+                enabled = false;
+                return;
+            }
+
             for (String biomeCategory : replaceWith.keySet()) {
                 Json5Array entries = replaceWith.get(biomeCategory).getAsJson5Array();
 
                 List<ReplacementEntry> replacementEntries = new ArrayList<>();
                 for (Json5Element entryElement : entries) {
                     Json5Object entryObj = entryElement.getAsJson5Object();
+
+                    // Validate weight field
+                    if (!entryObj.has("weight")) {
+                        String entryDesc = entryObj.has("structure") ? entryObj.get("structure").getAsString() :
+                                          entryObj.has("pattern") ? entryObj.get("pattern").getAsString() :
+                                          entryObj.has("empty") ? "(empty)" : "(unknown)";
+                        MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: Entry in category '{}' is missing 'weight' field: {} - SKIPPING",
+                            biomeCategory, entryDesc);
+                        continue; // Skip this entry
+                    }
+
                     int weight = entryObj.get("weight").getAsInt();
+
+                    // Validate weight value
+                    if (weight <= 0) {
+                        String entryDesc = entryObj.has("structure") ? entryObj.get("structure").getAsString() :
+                                          entryObj.has("pattern") ? entryObj.get("pattern").getAsString() :
+                                          entryObj.has("empty") ? "(empty)" : "(unknown)";
+                        MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: Entry in category '{}' has weight <= 0: {} (weight: {}) - SKIPPING (will never be selected)",
+                            biomeCategory, entryDesc, weight);
+                        continue; // Skip this entry
+                    }
+
+                    // Validate that entry has at least one content field (empty, pattern, structure)
+                    boolean hasEmpty = entryObj.has("empty") && entryObj.get("empty").getAsBoolean();
+                    boolean hasPattern = entryObj.has("pattern");
+                    boolean hasStructure = entryObj.has("structure");
+
+                    if (!hasEmpty && !hasPattern && !hasStructure) {
+                        MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: Entry in category '{}' has weight but no structure/pattern/empty field - SKIPPING",
+                            biomeCategory);
+                        continue; // Skip this entry
+                    }
 
                     if (entryObj.has("empty") && entryObj.get("empty").getAsBoolean()) {
                         // This is an empty entry (weighted no-spawn)
@@ -178,6 +264,11 @@ public class MVSConfig {
                     }
                 }
 
+                // Warn if all entries were skipped (category is now empty)
+                if (replacementEntries.isEmpty() && entries.size() > 0) {
+                    MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: Category '{}' has no valid entries after validation (all skipped) - category will be EMPTY", biomeCategory);
+                }
+
                 replaceWithRaw.put(biomeCategory, replacementEntries);
             }
 
@@ -186,7 +277,28 @@ public class MVSConfig {
             MultiVillageSelector.LOGGER.info("Loaded {} prevent_spawn patterns", preventSpawnPatterns.size());
 
         } catch (Exception e) {
-            MultiVillageSelector.LOGGER.error("Failed to load MVS config", e);
+            MultiVillageSelector.LOGGER.error("╔════════════════════════════════════════════════════════╗");
+            MultiVillageSelector.LOGGER.error("║  ❌ FAILED TO LOAD MVS CONFIG                         ║");
+            MultiVillageSelector.LOGGER.error("╠════════════════════════════════════════════════════════╣");
+            MultiVillageSelector.LOGGER.error("║  Your config file is MALFORMED and cannot be parsed.  ║");
+            MultiVillageSelector.LOGGER.error("║                                                        ║");
+            MultiVillageSelector.LOGGER.error("║  Common issues:                                        ║");
+            MultiVillageSelector.LOGGER.error("║  - Missing commas between entries                      ║");
+            MultiVillageSelector.LOGGER.error("║  - Mismatched brackets {{ }} or [ ]                   ║");
+            MultiVillageSelector.LOGGER.error("║  - Wrong type (number instead of array, etc)          ║");
+            MultiVillageSelector.LOGGER.error("║  - Invalid JSON5 syntax                                ║");
+            MultiVillageSelector.LOGGER.error("║                                                        ║");
+            MultiVillageSelector.LOGGER.error("║  Fix: Delete config file and restart to regenerate    ║");
+            MultiVillageSelector.LOGGER.error("║  Or: Run /mvs generate to create a fresh config       ║");
+            MultiVillageSelector.LOGGER.error("║                                                        ║");
+            MultiVillageSelector.LOGGER.error("║  Config location: config/multivillageselector.json5   ║");
+            MultiVillageSelector.LOGGER.error("║                                                        ║");
+            MultiVillageSelector.LOGGER.error("║  ⚠️  MOD DISABLED UNTIL CONFIG IS FIXED               ║");
+            MultiVillageSelector.LOGGER.error("╚════════════════════════════════════════════════════════╝");
+            MultiVillageSelector.LOGGER.error("Parse error details:", e);
+
+            // Disable mod
+            enabled = false;
         }
     }
 
@@ -303,19 +415,38 @@ public class MVSConfig {
         // Try the specific category first
         List<WeightedStructure> structures = biomeReplacements.get(biomeCategory);
 
-        // Fall back to DEFAULT if no structures found
-        if ((structures == null || structures.isEmpty()) && biomeReplacements.containsKey("DEFAULT")) {
-            structures = biomeReplacements.get("DEFAULT");
-            if (debugLogging) {
-                MultiVillageSelector.LOGGER.info("No structures for category {}, using DEFAULT", biomeCategory);
+        // Fall back to DEFAULT only if category is undefined (null), not if empty list []
+        // Empty list [] = intentional "no villages", undefined = use DEFAULT
+        if (structures == null && biomeReplacements.containsKey("DEFAULT")) {
+            List<WeightedStructure> defaultStructures = biomeReplacements.get("DEFAULT");
+            // Only use DEFAULT if it's not empty/null itself
+            if (defaultStructures != null && !defaultStructures.isEmpty()) {
+                structures = defaultStructures;
+                if (debugLogging) {
+                    MultiVillageSelector.LOGGER.info("No structures for category {}, using DEFAULT", biomeCategory);
+                }
+            } else {
+                if (debugLogging) {
+                    MultiVillageSelector.LOGGER.info("No structures for category {} and DEFAULT is empty/undefined - no village will spawn", biomeCategory);
+                }
             }
         }
 
         if (structures == null || structures.isEmpty()) {
+            if (debugLogging && structures != null && structures.isEmpty()) {
+                MultiVillageSelector.LOGGER.info("Category {} has empty list [] - intentional no spawn", biomeCategory);
+            }
             return null;
         }
 
         int totalWeight = structures.stream().mapToInt(s -> s.weight).sum();
+
+        // Validate totalWeight (should never be 0 after validation, but safety check)
+        if (totalWeight <= 0) {
+            MultiVillageSelector.LOGGER.error("⚠️  MVS Error: Category '{}' has total weight <= 0 - this should not happen! Check config.", biomeCategory);
+            return null;
+        }
+
         int randomWeight = random.nextInt(totalWeight);
 
         int currentWeight = 0;
@@ -327,5 +458,35 @@ public class MVSConfig {
         }
 
         return structures.get(0); // Fallback
+    }
+
+    /**
+     * Save the config file with updated show_first_launch_message value.
+     * This is called after displaying the first launch message to prevent it from showing again.
+     */
+    public static void saveShowFirstLaunchMessage(boolean value) {
+        try {
+            Path configFile = FMLPaths.CONFIGDIR.get().resolve("multivillageselector.json5");
+
+            // Read existing config
+            String json5Content = Files.readString(configFile, StandardCharsets.UTF_8);
+
+            // Replace the show_first_launch_message value
+            // This is a simple string replacement approach - works because the field is at the top
+            String updatedContent = json5Content.replaceFirst(
+                "show_first_launch_message:\\s*true",
+                "show_first_launch_message: false"
+            );
+
+            // Write back
+            Files.writeString(configFile, updatedContent, StandardCharsets.UTF_8);
+
+            // Update in-memory value
+            showFirstLaunchMessage = value;
+
+            MultiVillageSelector.LOGGER.info("MVS: Updated show_first_launch_message to false");
+        } catch (Exception e) {
+            MultiVillageSelector.LOGGER.error("MVS: Failed to save config", e);
+        }
     }
 }

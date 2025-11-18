@@ -45,6 +45,48 @@ public class VillageReplacementHandler {
         MultiVillageSelector.LOGGER.info("Stage 1: Detect & Cancel - Using Mixin");
         MultiVillageSelector.LOGGER.info("Stage 2: Replacement Placement - TODO");
         MultiVillageSelector.LOGGER.info("===========================================");
+
+        // Register commands
+        MultiVillageSelector.LOGGER.info("Registering MVS commands...");
+        try {
+            MVSCommands.register(event.getServer().getCommands().getDispatcher());
+            MultiVillageSelector.LOGGER.info("MVS commands registered successfully");
+        } catch (Exception e) {
+            MultiVillageSelector.LOGGER.error("Failed to register MVS commands", e);
+        }
+
+        // Show first-launch message if enabled
+        if (MVSConfig.showFirstLaunchMessage) {
+            MultiVillageSelector.LOGGER.warn("╔════════════════════════════════════════════════════════╗");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║     Multi Village Selector - First Launch Detected    ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("╠════════════════════════════════════════════════════════╣");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  Quick Start Guide:                                    ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  1. Run in-game:  /mvs generate                        ║");
+            MultiVillageSelector.LOGGER.warn("║     (Requires OP level 2)                              ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  2. Review the generated config file                   ║");
+            MultiVillageSelector.LOGGER.warn("║     Click the link shown in chat                       ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  3. Copy file to: config/multivillageselector.json5    ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  4. Restart Minecraft to apply changes                 ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("╠════════════════════════════════════════════════════════╣");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  📖 Documentation:                                     ║");
+            MultiVillageSelector.LOGGER.warn("║     github.com/RhettL/multi-village-selector/docs     ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("║  This message will not show again.                     ║");
+            MultiVillageSelector.LOGGER.warn("║                                                        ║");
+            MultiVillageSelector.LOGGER.warn("╚════════════════════════════════════════════════════════╝");
+
+            // Disable the message for future launches
+            MVSConfig.saveShowFirstLaunchMessage(false);
+        }
     }
 
     @SubscribeEvent(priority = EventPriority.HIGHEST)

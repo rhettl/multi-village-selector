@@ -4,8 +4,41 @@ Multi Village Selector uses a JSON5 configuration file located at `config/multiv
 
 **Important:** Configuration is loaded at server/game startup. Changes to the config file require a full restart to take effect - `/reload` does NOT reload MVS configuration.
 
+---
+
+## Quick Start: Auto-Generate Config
+
+The easiest way to configure MVS is to use the **`/mvs generate`** command in-game:
+
+1. **Launch Minecraft** with MVS and your village mods installed
+2. **Run `/mvs generate`** in-game (requires OP level 2)
+3. **Click the file link** in chat to open `local/mvs/multivillageselector.json5`
+4. **Review the generated config** - adjust weights and biome categories as desired
+5. **Copy to `config/multivillageselector.json5`** to replace your current config
+6. **Restart Minecraft** for changes to take effect
+
+### What `/mvs generate` Does
+
+- ✅ **Scans all installed mods** for village structures
+- ✅ **Detects common village mods** (BCA, CTOV, Towns & Towers, etc.)
+- ✅ **Categorizes villages by biome** based on structure names
+- ✅ **Creates `replace_of` list** (vanilla + BCA if present)
+- ✅ **Creates `prevent_spawn` list** (all modded villages)
+- ✅ **Generates balanced weights** (equal weight of 10 for all villages)
+- ✅ **Identifies uncategorized biomes** (suggests overrides in comments)
+
+The generated config is a **starting point** - you should review and adjust:
+- **Weights**: Increase weight for villages you want to see more often
+- **Biome categories**: Add overrides for modded biomes in the UNCATEGORIZED section
+- **Pool variety**: Remove villages you don't want, add patterns for new mods
+
+See the rest of this guide for detailed explanations of each configuration option.
+
+---
+
 ## Table of Contents
 
+- [Quick Start: Auto-Generate Config](#quick-start-auto-generate-config)
 - [Basic Settings](#basic-settings)
 - [Structure Interception](#structure-interception)
   - [replace_of](#replace_of)
@@ -19,6 +52,7 @@ Multi Village Selector uses a JSON5 configuration file located at `config/multiv
     - [Biome Detection Hierarchy](#biome-detection-hierarchy)
 - [Pattern Matching](#pattern-matching)
 - [Examples](#examples)
+- [Command Reference](#command-reference)
 
 ---
 
@@ -28,6 +62,7 @@ Multi Village Selector uses a JSON5 configuration file located at `config/multiv
 {
   enabled: true,
   debug_logging: false,
+  show_first_launch_message: true, // Only in bundled default config
 }
 ```
 
@@ -46,6 +81,19 @@ Multi Village Selector uses a JSON5 configuration file located at `config/multiv
   - Weighted random selection results
 
 **Recommended:** Enable only when debugging issues. Creates verbose logs.
+
+### `show_first_launch_message`
+- **Type:** Boolean
+- **Default:** `true` (only in bundled default config)
+- **Description:** Controls whether the first-launch welcome message appears in server logs.
+  - When `true`: Shows a helpful quick-start guide on first server launch, then automatically sets to `false`
+  - When `false`: No welcome message is shown
+  - **Note:** Generated configs from `/mvs generate` do not include this field (treated as `false`)
+
+**Purpose:** Provides new users with setup instructions without being intrusive. The message only appears once and includes:
+- Quick start guide (4 steps)
+- Link to GitHub documentation
+- Confirmation that it won't show again
 
 ---
 
@@ -558,6 +606,89 @@ Full troubleshooting guide at [this guide.](Troubleshooting.md)
 1. Check JSON5 syntax (commas, brackets, quotes)
 2. Look for parse errors in logs
 3. Delete config and let it regenerate from default
+4. Run `/mvs generate` to create a fresh config
+
+### Config validation warnings:
+MVS validates your config on startup and will skip invalid entries with warnings:
+
+**Missing weight field:**
+```
+⚠️  MVS Config Warning: Entry in category 'plains' is missing 'weight' field: minecraft:village_plains - SKIPPING
+```
+**Fix:** Add `weight: X` to the entry
+
+**Weight zero or negative:**
+```
+⚠️  MVS Config Warning: Entry in category 'plains' has weight <= 0: minecraft:village_plains (weight: 0) - SKIPPING (will never be selected)
+```
+**Fix:** Use positive weight (1 or higher)
+
+**Missing content field:**
+```
+⚠️  MVS Config Warning: Entry in category 'plains' has weight but no structure/pattern/empty field - SKIPPING
+```
+**Fix:** Add one of: `structure: "..."`, `pattern: "..."`, or `empty: true`
+
+**Missing root property:**
+```
+⚠️  MVS Config Warning: 'enabled' field missing - defaulting to true
+```
+**Fix:** Add missing field or use `/mvs generate`
+
+**Malformed config:**
+```
+╔════════════════════════════════════════════════════════╗
+║  ❌ FAILED TO LOAD MVS CONFIG                         ║
+║  Your config file is MALFORMED and cannot be parsed.  ║
+╚════════════════════════════════════════════════════════╝
+```
+**Fix:** Check JSON5 syntax, run `/mvs generate`, or delete config to regenerate
+
+**Note:** If entries are skipped, the mod will continue running with remaining valid entries. Check logs for warnings after each restart.
+
+---
+
+## Command Reference
+
+MVS provides several in-game commands to help you configure and debug your setup:
+
+### Configuration Commands
+
+- **`/mvs generate`** - Auto-generate a config file based on your installed mods
+  - Scans for village structures
+  - Creates smart defaults for `replace_of`, `prevent_spawn`, and `replace_with`
+  - Identifies uncategorized biomes
+  - Outputs to `local/mvs/multivillageselector.json5` with clickable link
+
+### Debugging Commands
+
+- **`/mvs biome`** - Show your current biome, location, temperature, and category
+- **`/mvs biome <biome_id>`** - Look up which category a specific biome maps to
+- **`/mvs biome list`** - List all biomes grouped by category (shows UNCATEGORIZED biomes)
+- **`/mvs pools`** - List all configured pool categories
+- **`/mvs pools <category>`** - Show structures in a pool with weights and percentages
+
+### Common Use Cases
+
+**Initial Setup:**
+```
+/mvs generate          → Generate starter config
+/mvs biome list        → Check which biomes need overrides
+```
+
+**Verify Configuration:**
+```
+/mvs pools plains      → Check plains village weights
+/mvs biome             → Verify biome categorization at your location
+```
+
+**Debug Villages:**
+```
+/mvs biome             → Check category at village location
+/mvs pools <category>  → See which villages can spawn
+```
+
+For complete command documentation, see [Commands Reference](Commands.md).
 
 ---
 

@@ -4,6 +4,7 @@ Common issues and solutions for Multi Village Selector.
 
 ## Table of Contents
 
+- [Using Commands for Debugging](#using-commands-for-debugging)
 - [Villages Not Spawning](#villages-not-spawning)
 - [Wrong Villages in Wrong Biomes](#wrong-villages-in-wrong-biomes)
 - [Only One Mod's Villages Spawning](#only-one-mods-villages-spawning)
@@ -14,10 +15,106 @@ Common issues and solutions for Multi Village Selector.
 
 ---
 
+## Using Commands for Debugging
+
+MVS provides several in-game commands that make troubleshooting much easier. **Use these commands first** before diving into logs and config files.
+
+### Quick Diagnostic Commands
+
+| Problem | Command to Use | What It Tells You |
+|---------|----------------|-------------------|
+| Village in wrong biome | `/mvs biome` | Current biome category and available structures |
+| Want to check specific biome | `/mvs biome <biome_id>` | How a biome is categorized before visiting |
+| Unbalanced village variety | `/mvs pools <category>` | Weight percentages for all villages in pool |
+| Need fresh config | `/mvs generate` | Auto-generate config from installed mods |
+| Modded biomes not categorized | `/mvs biome list` | Show UNCATEGORIZED biomes that need overrides |
+| Check all pools | `/mvs pools` | List all categories and structure counts |
+
+### Common Debugging Workflows
+
+#### Workflow 1: Village in Wrong Biome
+```
+1. Stand at the village
+2. /mvs biome
+   → Check the "Category" field
+   → Check "Available Structures" count
+3. /mvs pools <category>
+   → Review the village list and weights
+   → See if the village you got is in the pool
+4. Adjust config weights if needed
+5. Restart and test in new world
+```
+
+#### Workflow 2: Setting Up Modded Biomes
+```
+1. /mvs biome list
+   → Look at UNCATEGORIZED section
+   → These biomes use DEFAULT pool
+2. For each biome you want to customize:
+   /mvs biome <mod:biome>
+   → Check current category assignment
+3. Add overrides to config:
+   "biome_category_overrides": {
+     "modname:biome": "desired_category"
+   }
+4. Restart and verify:
+   /mvs biome <mod:biome>
+   → Should show "Source: Config Override"
+```
+
+#### Workflow 3: Initial Setup (Recommended)
+```
+1. Install all village mods you want
+2. /mvs generate
+   → Auto-generates config
+   → Click file link in chat
+3. Review generated config:
+   - Check village weights (equal 10 by default)
+   - Check biome_category_overrides suggestions
+   - Adjust as desired
+4. Copy to config/multivillageselector.json5
+5. Restart Minecraft
+6. Verify with:
+   /mvs pools plains
+   /mvs biome list
+```
+
+#### Workflow 4: Balancing Village Variety
+```
+1. /mvs pools <category>
+   → Note current percentages
+   → Identify over/under-represented villages
+2. Edit config weights
+3. Restart
+4. /mvs pools <category>
+   → Verify new percentages
+```
+
+### Command Prerequisites
+
+- **Permission Required:** OP level 2 (`/op <username>`)
+- **Single-player:** Commands work automatically
+- **Server:** Requires OP permission
+
+For complete command documentation, see [Commands Reference](Commands.md).
+
+---
+
 ## Villages Not Spawning
 
 ### Symptom
 No villages generating in new worlds, or very sparse village spawning.
+
+### Quick Command Check First
+
+Before diving into logs, try these commands:
+```
+/mvs pools           → Check if any categories have structures
+/mvs pools plains    → Verify plains pool has villages
+/mvs biome           → Stand somewhere and check category + available structures
+```
+
+If `/mvs pools <category>` shows 0 structures or "Available Structures: None", your config may be misconfigured. Try `/mvs generate` to create a fresh config.
 
 ### Diagnosis Workflow
 
@@ -145,6 +242,19 @@ replace_with: {
 ### Symptom
 Desert villages spawning in snow, ocean villages spawning on land, etc.
 
+### Quick Command Check First
+
+Stand at the problematic village and run:
+```
+/mvs biome           → Check biome category and source
+/mvs pools <category>→ See which villages can spawn here
+```
+
+This immediately shows:
+- What category the biome maps to
+- Whether it's from config override or automatic detection
+- Which villages are in the pool for this category
+
 ### Diagnosis
 
 **Enable debug logging** and check biome detection:
@@ -170,6 +280,14 @@ biome_category_overrides: {
 
 ##### How to find biome IDs
 
+**Method 1: Use Commands (Easiest)**
+```
+/mvs biome                           → Shows current biome ID
+/mvs biome list                      → Lists all biomes by category
+/mvs biome terralith:volcanic_peaks  → Check specific biome
+```
+
+**Method 2: Debug Logging**
 - Enable debug logging
 - Find a village in the wrong biome
 - Check logs for: `Biome: terralith:volcanic_peaks`
@@ -193,6 +311,18 @@ Add specific biome categories or adjust your DEFAULT pool to have appropriate va
 
 ### Symptom
 Only seeing CTOV villages, or only BCA villages, no variety.
+
+### Quick Command Check First
+
+Check weight distribution:
+```
+/mvs pools plains    → See percentages for all villages
+/mvs pools desert    → Check other biomes too
+```
+
+Look for unbalanced weights like:
+- `[500] (98.0%) ctov:large/village_plains` ← Too high!
+- `[10] (2.0%) minecraft:village_plains` ← Too low!
 
 ### Diagnosis
 

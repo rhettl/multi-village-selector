@@ -35,6 +35,27 @@ Edit `config/ctov-common.toml`:
 **For BCA users:**
 No configuration needed! MVS automatically detects and replaces BCA villages.
 
+## In-Game Commands
+
+MVS includes debug commands to help you understand and configure village spawning:
+
+```
+/mvs biome              # Show current biome, location, and category
+/mvs biome <biome_id>   # Look up category for specific biome
+/mvs pools              # List all configured categories
+/mvs pools <category>   # Show structures and weights in a pool
+/mvs help               # Show command help
+```
+
+**Example:** Walk into a biome and run `/mvs biome` to see:
+- Your exact coordinates
+- The biome ID (e.g., `minecraft:plains`)
+- Biome temperature
+- Which category MVS uses (e.g., `plains`)
+- How many structures can spawn there
+
+All commands require OP level 2. See the [Commands Guide](docs/Commands.md) for full documentation and examples.
+
 ## How It Works
 
 Multi Village Selector intercepts village spawn attempts and replaces them with villages selected from configured pools:
@@ -53,6 +74,7 @@ Villages are selected randomly based on weights, ensuring variety while respecti
 ## Documentation
 
 - 📖 **[Configuration Guide](docs/Configuration.md)** - Detailed config options and examples
+- 💻 **[Commands Reference](docs/Commands.md)** - In-game debug commands and usage examples
 - 🔧 **[Mod Compatibility](docs/ModCompatibility.md)** - Which mods work how with MVS
 - ❓ **[Troubleshooting](docs/Troubleshooting.md)** - Common issues and solutions
 
