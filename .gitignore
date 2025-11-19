@@ -37,24 +37,9 @@ minecraft/
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 
-# Development notes (personal/AI documentation)
-BIOME_CATEGORIZATION.md
-BUILD_INSTRUCTIONS.md
-DEBUG_LOGGING_GUIDE.md
-HOW_IT_WORKS.md
-IMPLEMENTATION_NOTES.md
-PROJECT_SUMMARY.md
-REPLACEMENT_DESIGN_V2.md
-STAGE2_STATUS.md
-TEST_SPECIFICATION.md
-TEST_SUMMARY.md
-VILLAGE_BIOME_ANALYSIS.md
+# Development documentation (personal/AI notes, investigations, screenshots)
+dev-docs/
 
 # Test scripts (for local testing only)
 build-test*.sh
 registry_dumps.txt
-
-# Screenshots
-*.png
-*.jpg
-*.jpeg

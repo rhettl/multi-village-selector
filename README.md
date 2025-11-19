@@ -32,8 +32,14 @@ Edit `config/ctov-common.toml`:
     generatelargeVillage = false
 ```
 
-**For BCA users:**
-No configuration needed! MVS automatically detects and replaces BCA villages.
+**For Cobblemon Additions (BCA) users:**
+Added special casing for BCA villages. if BCA is installed when running `/mvs generate` it will add the needed changes 
+to catch BCA spawn attempts.
+
+**Note for BCA 4.0.1:** The current version has a minor configuration bug that is being investigated -- so you can't 
+disable vanilla overriding. CristelLib may auto-generate configs in `config/cristellib/cobblemon_additions/*`, but BCA 
+does not read these configs at the moment. MVS handles BCA villages correctly regardless. Future BCA releases may fix 
+this - check release notes for changes.
 
 ## In-Game Commands
 
@@ -113,7 +119,7 @@ For now, MVS stays focused on its core purpose: **bringing village variety to th
 
 - ✅ **Vanilla Minecraft** - All 5 vanilla village types
 - ✅ **CTOV** (ChoiceTheorem's Overhauled Village) - 100+ village variants
-- ✅ **BCA** (Cobblemon Additions) - Special handling for structure set override
+- ✅ **Cobblemon Additions (BCA)** - v4.0.1+ with special structure set override handling
 - ✅ **Towns & Towers** - Themed and exclusive villages
 - ✅ **Terralith** - Fortified villages
 - ✅ **Villages & Pillages** - Additional village types
