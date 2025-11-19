@@ -9,6 +9,10 @@ import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -21,35 +25,45 @@ public class MVSCommands {
      * Register all MVS commands
      */
     public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
-        dispatcher.register(
-            Commands.literal("mvs")
-                .requires(source -> {
-                    // Allow in single-player or if OP level 2+
-                    return !source.getServer().isDedicatedServer() || source.hasPermission(2);
-                })
-                .executes(MVSCommands::executeHelpCommand) // No args: show help
-                .then(Commands.literal("help")
-                    .executes(MVSCommands::executeHelpCommand)
+        var mvsCommand = Commands.literal("mvs")
+            .requires(source -> {
+                // Allow in single-player or if OP level 2+
+                return !source.getServer().isDedicatedServer() || source.hasPermission(2);
+            })
+            .executes(MVSCommands::executeHelpCommand) // No args: show help
+            .then(Commands.literal("help")
+                .executes(MVSCommands::executeHelpCommand)
+            )
+            .then(Commands.literal("biome")
+                .executes(MVSCommands::executeCurrentBiomeCommand) // No args: show current biome
+                .then(Commands.literal("list")
+                    .executes(MVSCommands::executeBiomesDumpCommand) // list: dump all biomes
                 )
-                .then(Commands.literal("biome")
-                    .executes(MVSCommands::executeCurrentBiomeCommand) // No args: show current biome
-                    .then(Commands.literal("list")
-                        .executes(MVSCommands::executeBiomesDumpCommand) // list: dump all biomes
-                    )
-                    .then(Commands.argument("biome_id", StringArgumentType.greedyString())
-                        .executes(MVSCommands::executeBiomeLookupCommand) // <id>: lookup specific biome
-                    )
+                .then(Commands.argument("biome_id", StringArgumentType.greedyString())
+                    .executes(MVSCommands::executeBiomeLookupCommand) // <id>: lookup specific biome
                 )
-                .then(Commands.literal("pools")
-                    .executes(MVSCommands::executePoolsCommand)
-                    .then(Commands.argument("category", StringArgumentType.word())
-                        .executes(MVSCommands::executePoolsCategoryCommand)
-                    )
+            )
+            .then(Commands.literal("pools")
+                .executes(MVSCommands::executePoolsCommand)
+                .then(Commands.argument("category", StringArgumentType.word())
+                    .executes(MVSCommands::executePoolsCategoryCommand)
                 )
-                .then(Commands.literal("generate")
-                    .executes(MVSCommands::executeGenerateCommand) // Generate smart config
+            )
+            .then(Commands.literal("generate")
+                .executes(MVSCommands::executeGenerateCommand) // Generate smart config
+            );
+
+        // Conditionally add debug commands if debug_cmd is enabled
+        if (MVSConfig.debugCmd) {
+            mvsCommand = mvsCommand.then(Commands.literal("debug")
+                .executes(MVSCommands::executeDebugHelpCommand) // Show debug command help
+                .then(Commands.literal("mod-weights")
+                    .executes(MVSCommands::executeModWeightsCommand) // Show structure weights from mods
                 )
-        );
+            );
+        }
+
+        dispatcher.register(mvsCommand);
     }
 
     /**
@@ -913,5 +927,185 @@ public class MVSCommands {
         lines.add("}");
 
         return lines;
+    }
+
+    /**
+     * Handle /mvs debug command (show debug command help)
+     */
+    private static int executeDebugHelpCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        source.sendSuccess(() -> Component.literal("=== MVS Debug Commands (Advanced) ===")
+            .withStyle(ChatFormatting.GOLD), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        source.sendSuccess(() -> Component.literal("/mvs debug mod-weights")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show structure weights from structure_sets")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("  Displays mod-intended spawn weights from structure_set registry")
+            .withStyle(ChatFormatting.DARK_GRAY), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        source.sendSuccess(() -> Component.literal("⚠️  These commands are for advanced debugging only")
+            .withStyle(ChatFormatting.YELLOW), false);
+
+        return 1;
+    }
+
+    /**
+     * Handle /mvs debug mod-weights command
+     * Queries the structure_set registry and writes weights to a file
+     */
+    private static int executeModWeightsCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        source.sendSuccess(() -> Component.literal("Querying structure weights from registry...")
+            .withStyle(ChatFormatting.YELLOW), false);
+
+        try {
+            net.minecraft.core.RegistryAccess registryAccess = source.getServer().registryAccess();
+            net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.StructureSet> structureSetRegistry =
+                registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+            net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.Structure> structureRegistry =
+                registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+
+            // Map to collect: structure_id -> (structure_set_id, weight, biome_tag)
+            Map<ResourceLocation, List<String>> structureToSets = new HashMap<>();
+            Map<ResourceLocation, String> structureToBiomeTag = new HashMap<>();
+
+            // First, get biome tags for each structure
+            for (var entry : structureRegistry.entrySet()) {
+                ResourceLocation structureId = entry.getKey().location();
+                net.minecraft.world.level.levelgen.structure.Structure structure = entry.getValue();
+
+                // Try to get biome tag from structure
+                try {
+                    var biomeHolderSet = structure.biomes();
+
+                    // Check if it's a tag-based HolderSet
+                    var tagKey = biomeHolderSet.unwrapKey();
+                    if (tagKey.isPresent()) {
+                        // It's a tag! Get the tag name
+                        String tagName = tagKey.get().location().toString();
+                        structureToBiomeTag.put(structureId, "#" + tagName);
+                    } else {
+                        // It's a direct list of biomes
+                        structureToBiomeTag.put(structureId, "direct_biomes");
+                    }
+                } catch (Exception e) {
+                    structureToBiomeTag.put(structureId, "unknown: " + e.getMessage());
+                }
+            }
+
+            // Iterate through all structure_sets
+            for (var entry : structureSetRegistry.entrySet()) {
+                ResourceLocation setId = entry.getKey().location();
+                net.minecraft.world.level.levelgen.structure.StructureSet structureSet = entry.getValue();
+
+                // Get all structures in this set with their weights
+                for (var selectionEntry : structureSet.structures()) {
+                    var structureHolder = selectionEntry.structure();
+                    int weight = selectionEntry.weight();
+
+                    // Get structure ID
+                    var structureKey = structureHolder.unwrapKey();
+                    if (structureKey.isPresent()) {
+                        ResourceLocation structureId = structureKey.get().location();
+                        String biomeTag = structureToBiomeTag.getOrDefault(structureId, "unknown");
+
+                        // Store: structure -> list of (set_id: weight [biome_tag])
+                        String info = setId + ": " + weight + " [" + biomeTag + "]";
+                        structureToSets.computeIfAbsent(structureId, k -> new ArrayList<>()).add(info);
+                    } else {
+                        // Log skipped entries (might be minecraft:air or other special structures)
+                        MultiVillageSelector.LOGGER.info("Skipped structure without key in set {}, weight: {}", setId, weight);
+                    }
+                }
+            }
+
+            // Sort by structure ID for easier reading
+            List<ResourceLocation> sortedStructures = new ArrayList<>(structureToSets.keySet());
+            sortedStructures.sort(Comparator.comparing(ResourceLocation::toString));
+
+            // Write to file
+            Path gameDir = source.getServer().getServerDirectory();
+            Path outputDir = gameDir.resolve("local/mvs");
+            java.nio.file.Files.createDirectories(outputDir);
+
+            String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+            Path outputFile = outputDir.resolve("mod-weights-" + timestamp + ".txt");
+
+            List<String> lines = new ArrayList<>();
+            lines.add("===========================================");
+            lines.add("  MVS Structure Weights from Structure Sets");
+            lines.add("===========================================");
+            lines.add("");
+            lines.add("Generated: " + timestamp);
+            lines.add("Total structures: " + structureToSets.size());
+            lines.add("");
+            lines.add("Format: structure_id");
+            lines.add("  structure_set_id: weight [biome_tag]");
+            lines.add("");
+            lines.add("Biome tags show which biomes the structure can spawn in.");
+            lines.add("Structures with the same biome tag form a POOL.");
+            lines.add("");
+            lines.add("===========================================");
+            lines.add("");
+
+            for (ResourceLocation structureId : sortedStructures) {
+                List<String> sets = structureToSets.get(structureId);
+                lines.add(structureId.toString());
+                for (String setInfo : sets) {
+                    lines.add("  " + setInfo);
+                }
+                lines.add(""); // Blank line between structures
+            }
+
+            lines.add("===========================================");
+            lines.add("How to use these weights:");
+            lines.add("");
+            lines.add("1. GROUP BY BIOME TAG - Structures with the same biome tag form a pool");
+            lines.add("   Example: BCA has two pools:");
+            lines.add("   - [bca:villages] pool: default_small (16), default_mid (11), default_large (2)");
+            lines.add("     Total: 29");
+            lines.add("   - [bca:dark] pool: dark_small (16), dark_mid (11)");
+            lines.add("     Total: 27");
+            lines.add("");
+            lines.add("2. CALCULATE POOL TOTALS - Add up weights for each pool");
+            lines.add("");
+            lines.add("3. NORMALIZE ACROSS MODS - When combining mods, scale each mod's");
+            lines.add("   pool total to match, giving equal mod representation:");
+            lines.add("   - BCA plains pool total: 29");
+            lines.add("   - CTOV plains pool total: 33");
+            lines.add("   - Scale BCA by 33/29 to match CTOV");
+            lines.add("   - Both mods now have equal weight, internal ratios preserved");
+            lines.add("");
+            lines.add("4. IGNORE CROSS-POOL WEIGHTS - Weights only matter within same biome tag!");
+            lines.add("   Don't compare [bca:villages] weights to [bca:dark] weights directly.");
+            lines.add("===========================================");
+
+            java.nio.file.Files.write(outputFile, lines, java.nio.charset.StandardCharsets.UTF_8);
+
+            String relativePath = gameDir.relativize(outputFile).toString();
+            source.sendSuccess(() -> Component.literal("✅ Structure weights written to: ")
+                .withStyle(ChatFormatting.GREEN)
+                .append(Component.literal(relativePath)
+                    .withStyle(ChatFormatting.AQUA)), false);
+
+            source.sendSuccess(() -> Component.literal("Found " + structureToSets.size() + " structures")
+                .withStyle(ChatFormatting.GRAY), false);
+
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("❌ Error querying structure_set registry: " + e.getMessage())
+                .withStyle(ChatFormatting.RED));
+            MultiVillageSelector.LOGGER.error("Error in /mvs debug mod-weights command", e);
+            return 0;
+        }
+
+        return 1;
     }
 }

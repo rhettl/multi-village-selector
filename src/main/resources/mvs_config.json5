@@ -13,6 +13,7 @@
 {
   enabled: true,
   debug_logging: false,
+  debug_cmd: false, // Enables /mvs debug commands (advanced users only)
   show_launch_message: true,
 
   // Vanilla villages to replace

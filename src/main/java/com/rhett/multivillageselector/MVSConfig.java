@@ -31,6 +31,7 @@ public class MVSConfig {
     public static Map<String, List<WeightedStructure>> biomeReplacements = new HashMap<>();
     public static Map<String, String> biomeCategoryOverrides = new HashMap<>();
     public static boolean debugLogging = false;
+    public static boolean debugCmd = false; // Enables /mvs debug commands (advanced users only)
     public static boolean showLaunchMessage = false; // Default false, only true in bundled default
 
     // Track whether structures have been discovered yet
@@ -143,6 +144,13 @@ public class MVSConfig {
             } else {
                 MultiVillageSelector.LOGGER.warn("⚠️  MVS Config Warning: 'debug_logging' field missing - defaulting to false");
                 debugLogging = false;
+            }
+
+            // Load debug_cmd (optional field, default to false if missing)
+            if (json.has("debug_cmd")) {
+                debugCmd = json.get("debug_cmd").getAsBoolean();
+            } else {
+                debugCmd = false; // No warning - this is an advanced feature
             }
 
             // Load show_launch_message if present (only in bundled default)

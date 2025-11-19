@@ -67,9 +67,15 @@ public abstract class ChunkGeneratorMixin {
         // Supporting nether/end structures (fortresses, bastions, end cities) would be
         // a completely different feature set - a generalized "Multi Structure Selector"
         // For now, we stay focused on our core purpose: village variety in overworld
-        ResourceLocation dimension = chunk.getLevel().dimension().location();
-        if (!dimension.equals(ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"))) {
-            return;
+
+        // Note: chunk.getLevel() can be null during early chunk generation
+        // In that case, skip dimension check (non-overworld structures won't match our patterns anyway)
+        var level = chunk.getLevel();
+        if (level != null) {
+            ResourceLocation dimension = level.dimension().location();
+            if (!dimension.equals(ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"))) {
+                return;
+            }
         }
 
         Structure structure = entry.structure().value();
