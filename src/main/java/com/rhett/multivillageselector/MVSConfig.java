@@ -31,7 +31,7 @@ public class MVSConfig {
     public static Map<String, List<WeightedStructure>> biomeReplacements = new HashMap<>();
     public static Map<String, String> biomeCategoryOverrides = new HashMap<>();
     public static boolean debugLogging = false;
-    public static boolean showFirstLaunchMessage = false; // Default false, only true in bundled default
+    public static boolean showLaunchMessage = false; // Default false, only true in bundled default
 
     // Track whether structures have been discovered yet
     private static boolean structuresDiscovered = false;
@@ -145,11 +145,11 @@ public class MVSConfig {
                 debugLogging = false;
             }
 
-            // Load show_first_launch_message if present (only in bundled default)
-            if (json.has("show_first_launch_message")) {
-                showFirstLaunchMessage = json.get("show_first_launch_message").getAsBoolean();
+            // Load show_launch_message if present (only in bundled default)
+            if (json.has("show_launch_message")) {
+                showLaunchMessage = json.get("show_launch_message").getAsBoolean();
             } else {
-                showFirstLaunchMessage = false; // Generated configs don't have this field
+                showLaunchMessage = false; // Generated configs don't have this field
             }
 
             // Load biome category overrides if present
@@ -458,35 +458,5 @@ public class MVSConfig {
         }
 
         return structures.get(0); // Fallback
-    }
-
-    /**
-     * Save the config file with updated show_first_launch_message value.
-     * This is called after displaying the first launch message to prevent it from showing again.
-     */
-    public static void saveShowFirstLaunchMessage(boolean value) {
-        try {
-            Path configFile = FMLPaths.CONFIGDIR.get().resolve("multivillageselector.json5");
-
-            // Read existing config
-            String json5Content = Files.readString(configFile, StandardCharsets.UTF_8);
-
-            // Replace the show_first_launch_message value
-            // This is a simple string replacement approach - works because the field is at the top
-            String updatedContent = json5Content.replaceFirst(
-                "show_first_launch_message:\\s*true",
-                "show_first_launch_message: false"
-            );
-
-            // Write back
-            Files.writeString(configFile, updatedContent, StandardCharsets.UTF_8);
-
-            // Update in-memory value
-            showFirstLaunchMessage = value;
-
-            MultiVillageSelector.LOGGER.info("MVS: Updated show_first_launch_message to false");
-        } catch (Exception e) {
-            MultiVillageSelector.LOGGER.error("MVS: Failed to save config", e);
-        }
     }
 }

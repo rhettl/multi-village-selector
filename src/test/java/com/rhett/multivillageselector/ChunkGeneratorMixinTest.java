@@ -26,6 +26,44 @@ class ChunkGeneratorMixinTest {
         MVSConfig.biomeCategoryOverrides.clear();
     }
 
+    // ====== Dimension Check Tests ======
+
+    @Test
+    @DisplayName("Dimension check: Overworld dimension identifier")
+    void testOverworldDimensionCheck() {
+        // Test that we correctly identify overworld dimension
+        String overworldDimension = "minecraft:overworld";
+
+        // Overworld should be allowed
+        assertTrue(isOverworldDimension(overworldDimension));
+
+        // Non-overworld dimensions should not be allowed
+        assertFalse(isOverworldDimension("minecraft:the_nether"));
+        assertFalse(isOverworldDimension("minecraft:the_end"));
+        assertFalse(isOverworldDimension("twilightforest:twilight_forest"));
+        assertFalse(isOverworldDimension("custom_mod:custom_dimension"));
+    }
+
+    @Test
+    @DisplayName("Dimension check: Non-overworld dimensions skip interception")
+    void testNonOverworldDimensionsSkipped() {
+        // Document expected behavior: MVS only operates in overworld
+        // When chunk.getLevel().dimension().location() returns non-overworld dimension,
+        // the mixin should return early without intercepting any structures
+
+        String netherDimension = "minecraft:the_nether";
+        String endDimension = "minecraft:the_end";
+
+        // These dimensions should be skipped
+        assertFalse(isOverworldDimension(netherDimension),
+            "Nether structures (fortresses, bastions) should not be intercepted");
+        assertFalse(isOverworldDimension(endDimension),
+            "End structures (cities, ships) should not be intercepted");
+
+        // This ensures MVS stays focused on village variety in overworld
+        // Supporting cross-dimension structure replacement would be a different feature
+    }
+
     // ====== Pattern Matching Integration Tests ======
 
     @Test
@@ -240,6 +278,14 @@ class ChunkGeneratorMixinTest {
     }
 
     // ====== Helper Methods (mirror ChunkGeneratorMixin logic) ======
+
+    /**
+     * Mirror of dimension check from ChunkGeneratorMixin
+     * Tests that we correctly identify the overworld dimension
+     */
+    private boolean isOverworldDimension(String dimensionId) {
+        return "minecraft:overworld".equals(dimensionId);
+    }
 
     /**
      * Mirror of shouldPreventSpawn from ChunkGeneratorMixin

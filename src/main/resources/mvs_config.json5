@@ -13,7 +13,7 @@
 {
   enabled: true,
   debug_logging: false,
-  show_first_launch_message: true,
+  show_launch_message: true,
 
   // Vanilla villages to replace
   replace_of: [
@@ -57,6 +57,7 @@
     dark_forest: [], // No vanilla dark forest villages - add modded villages here
     ocean: [],       // No villages in oceans by default
     mushroom: [],    // No villages in mushroom biomes by default
+    cave: [],        // Cave biomes - keep empty (villages sample at surface level)
 
 
     // ═══════════════════════════════════════════════════════════════

@@ -71,6 +71,37 @@ plains: [
 
 Villages are selected randomly based on weights, ensuring variety while respecting biome appropriateness.
 
+## Scope & Limitations
+
+### Overworld Villages Only
+
+**Important:** Multi Village Selector is specifically designed for **Overworld village variety** and only operates in the Overworld dimension.
+
+**What this means:**
+- ✅ **Overworld villages** - Fully supported with intelligent biome matching
+- ❌ **Nether structures** - Fortresses, bastions, etc. are not intercepted
+- ❌ **End structures** - End cities, ships, etc. are not intercepted
+- ❌ **Custom dimensions** - Modded dimensions are not supported
+
+**Why this limitation?**
+
+Supporting structures across all dimensions (nether fortresses, bastion remnants, end cities, etc.) would be a completely different feature requiring:
+- Different structure pools per dimension
+- Different biome categorization logic per dimension
+- Nether/End-specific structure handling
+
+This would transform MVS from a focused **village variety** tool into a general-purpose **structure pooling** framework.
+
+### Future Possibilities
+
+A generalized **Multi Structure Selector** mod may materialize in the future to handle:
+- Cross-dimension structure replacement
+- Non-village structures (temples, monuments, etc.)
+- Custom dimension support
+- More complex structure pool logic
+
+For now, MVS stays focused on its core purpose: **bringing village variety to the Overworld**.
+
 ## Documentation
 
 - 📖 **[Configuration Guide](docs/Configuration.md)** - Detailed config options and examples

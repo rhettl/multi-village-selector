@@ -55,11 +55,11 @@ public class VillageReplacementHandler {
             MultiVillageSelector.LOGGER.error("Failed to register MVS commands", e);
         }
 
-        // Show first-launch message if enabled
-        if (MVSConfig.showFirstLaunchMessage) {
+        // Show launch message if enabled
+        if (MVSConfig.showLaunchMessage) {
             MultiVillageSelector.LOGGER.warn("╔════════════════════════════════════════════════════════╗");
             MultiVillageSelector.LOGGER.warn("║                                                        ║");
-            MultiVillageSelector.LOGGER.warn("║     Multi Village Selector - First Launch Detected    ║");
+            MultiVillageSelector.LOGGER.warn("║          Multi Village Selector - Quick Start         ║");
             MultiVillageSelector.LOGGER.warn("║                                                        ║");
             MultiVillageSelector.LOGGER.warn("╠════════════════════════════════════════════════════════╣");
             MultiVillageSelector.LOGGER.warn("║                                                        ║");
@@ -80,12 +80,7 @@ public class VillageReplacementHandler {
             MultiVillageSelector.LOGGER.warn("║  📖 Documentation:                                     ║");
             MultiVillageSelector.LOGGER.warn("║     github.com/RhettL/multi-village-selector/docs     ║");
             MultiVillageSelector.LOGGER.warn("║                                                        ║");
-            MultiVillageSelector.LOGGER.warn("║  This message will not show again.                     ║");
-            MultiVillageSelector.LOGGER.warn("║                                                        ║");
             MultiVillageSelector.LOGGER.warn("╚════════════════════════════════════════════════════════╝");
-
-            // Disable the message for future launches
-            MVSConfig.saveShowFirstLaunchMessage(false);
         }
     }
 

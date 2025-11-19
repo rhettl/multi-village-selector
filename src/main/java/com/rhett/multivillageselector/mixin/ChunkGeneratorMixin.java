@@ -62,6 +62,16 @@ public abstract class ChunkGeneratorMixin {
             return;
         }
 
+        // Only intercept structures in the overworld dimension
+        // MVS is specifically designed for village variety in the overworld
+        // Supporting nether/end structures (fortresses, bastions, end cities) would be
+        // a completely different feature set - a generalized "Multi Structure Selector"
+        // For now, we stay focused on our core purpose: village variety in overworld
+        ResourceLocation dimension = chunk.getLevel().dimension().location();
+        if (!dimension.equals(ResourceLocation.fromNamespaceAndPath("minecraft", "overworld"))) {
+            return;
+        }
+
         Structure structure = entry.structure().value();
         Registry<Structure> registry = registryAccess.registryOrThrow(Registries.STRUCTURE);
         ResourceLocation structureLocation = registry.getKey(structure);

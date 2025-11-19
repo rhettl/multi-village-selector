@@ -12,6 +12,7 @@ Common issues and solutions for Multi Village Selector.
 - [Config Not Loading](#config-not-loading)
 - [Structure Errors in Logs](#structure-errors-in-logs)
 - [Debug Mode](#debug-mode)
+- [Nether/End Structures Not Affected](#netherend-structures-not-affected)
 
 ---
 
@@ -606,6 +607,36 @@ Weighted empty was selected, no village placed intentionally.
 1. Check `Selection Pool` logs
 2. Look at weights and percentages
 3. Adjust weights if one mod dominates
+
+---
+
+## Nether/End Structures Not Affected
+
+### Symptom
+
+Nether fortresses, bastion remnants, end cities, or other non-overworld structures are still spawning normally and MVS doesn't seem to affect them.
+
+### This Is Expected Behavior
+
+**MVS only operates in the Overworld dimension.** Nether, End, and custom dimension structures are intentionally not intercepted.
+
+**Why?**
+- MVS is specifically designed for **village variety** in the Overworld
+- Supporting cross-dimension structure replacement would be a completely different feature
+- Different dimensions need different structure pools, biome logic, and handling
+- This would transform MVS from a focused tool into a general "Multi Structure Selector"
+
+**What this means:**
+- ✅ **Overworld villages** - Fully supported
+- ❌ **Nether structures** - Not intercepted (fortresses, bastions, etc.)
+- ❌ **End structures** - Not intercepted (cities, ships, etc.)
+- ❌ **Custom dimensions** - Not supported
+
+### Future Possibilities
+
+A generalized **Multi Structure Selector** mod may be developed in the future to handle cross-dimension structure pooling. For now, MVS stays focused on its core purpose: bringing village variety to the Overworld.
+
+See the README's [Scope & Limitations](../README.md#scope--limitations) section for more details.
 
 ---
 

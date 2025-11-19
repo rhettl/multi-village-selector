@@ -2,7 +2,9 @@
 
 Multi Village Selector uses a JSON5 configuration file located at `config/multivillageselector.json5`. This file is automatically created with sensible defaults on first launch.
 
-**Important:** Configuration is loaded at server/game startup. Changes to the config file require a full restart to take effect - `/reload` does NOT reload MVS configuration.
+**Important:**
+- Configuration is loaded at server/game startup. Changes to the config file require a full restart to take effect - `/reload` does NOT reload MVS configuration.
+- MVS **only operates in the Overworld dimension**. Nether/End structures are not affected. See [Scope & Limitations](../README.md#scope--limitations) for details.
 
 ---
 
@@ -62,7 +64,7 @@ See the rest of this guide for detailed explanations of each configuration optio
 {
   enabled: true,
   debug_logging: false,
-  show_first_launch_message: true, // Only in bundled default config
+  show_launch_message: true, // Only in bundled default config
 }
 ```
 
@@ -82,18 +84,18 @@ See the rest of this guide for detailed explanations of each configuration optio
 
 **Recommended:** Enable only when debugging issues. Creates verbose logs.
 
-### `show_first_launch_message`
+### `show_launch_message`
 - **Type:** Boolean
 - **Default:** `true` (only in bundled default config)
-- **Description:** Controls whether the first-launch welcome message appears in server logs.
-  - When `true`: Shows a helpful quick-start guide on first server launch, then automatically sets to `false`
+- **Description:** Controls whether the welcome message appears in server logs on startup.
+  - When `true`: Shows a helpful quick-start guide on every server launch
   - When `false`: No welcome message is shown
   - **Note:** Generated configs from `/mvs generate` do not include this field (treated as `false`)
 
-**Purpose:** Provides new users with setup instructions without being intrusive. The message only appears once and includes:
+**Purpose:** Provides new users with setup instructions. The message includes:
 - Quick start guide (4 steps)
 - Link to GitHub documentation
-- Confirmation that it won't show again
+- Set to `false` in config to disable after initial setup
 
 ---
 
@@ -221,7 +223,7 @@ replace_with: {
 - `plains` - Plains, meadows, forests, birch forests
 - `desert` - Desert, badlands, mesa
 - `savanna` - Savanna, shattered savanna
-- `snowy` - Snowy plains, ice spikes, frozen peaks, groves
+- `snowy` - Snowy plains, ice spikes, frozen peaks, groves, mountain peaks
 - `taiga` - Taiga, old growth taiga, snowy taiga
 - `swamp` - Swamp, mangrove swamp
 - `jungle` - Jungle, bamboo jungle
@@ -229,7 +231,10 @@ replace_with: {
 - `beach` - Beach, stony shore
 - `mushroom` - Mushroom fields
 - `dark_forest` - Dark forest
+- `cave` - Cave biomes (deep_dark, dripstone_caves, lush_caves) - **Keep empty** unless you want villages in rare edge cases where surface sampling hits a cave biome
 - `DEFAULT` - Fallback for uncategorized biomes
+
+**Important:** MVS only operates in the **Overworld dimension**. Nether and End structures are not intercepted.
 
 **Note:** `DEFAULT` pool is not included in other categories. if you want something in both, put it in both. 
 But if category doesn't exist, it will use DEFAULT, Ex: 

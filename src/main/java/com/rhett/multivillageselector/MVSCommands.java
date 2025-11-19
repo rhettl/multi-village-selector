@@ -346,11 +346,13 @@ public class MVSCommands {
                         path.contains("steppe") || path.contains("arid") ||
                         path.contains("snow") || path.contains("ice") || path.contains("frozen") ||
                         path.contains("arctic") || path.contains("tundra") || path.contains("glacier") ||
-                        path.contains("grove") ||
+                        path.contains("grove") || path.contains("peaks") ||
                         path.contains("taiga") || path.contains("pine") || path.contains("spruce") ||
                         path.contains("boreal") || path.contains("conifer") ||
                         path.contains("ocean") || path.contains("sea") || path.contains("river") ||
                         path.contains("lake") ||
+                        path.contains("cave") || path.contains("deep_dark") || path.contains("dripstone") ||
+                        path.contains("lush_cave") ||
                         path.contains("plains") || path.contains("meadow") || path.contains("grassland") ||
                         path.contains("field") || path.contains("pasture") || path.contains("forest")) {
                         hasExplicitMatch = true;
@@ -566,7 +568,7 @@ public class MVSCommands {
         }
         if (path.contains("snow") || path.contains("ice") || path.contains("frozen") ||
             path.contains("arctic") || path.contains("tundra") || path.contains("glacier") ||
-            path.contains("grove")) {
+            path.contains("grove") || path.contains("peaks")) {
             return "snowy";
         }
         if (path.contains("taiga") || path.contains("pine") || path.contains("spruce") ||
@@ -576,6 +578,10 @@ public class MVSCommands {
         if (path.contains("ocean") || path.contains("sea") || path.contains("river") ||
             path.contains("lake")) {
             return "ocean";
+        }
+        if (path.contains("cave") || path.contains("deep_dark") || path.contains("dripstone") ||
+            path.contains("lush_cave")) {
+            return "cave";
         }
         if (path.contains("plains") || path.contains("meadow") || path.contains("grassland") ||
             path.contains("field") || path.contains("pasture") || path.contains("forest")) {
@@ -732,6 +738,7 @@ public class MVSCommands {
         if (path.contains("snow") || path.contains("ice") || path.contains("frozen")) return "snowy";
         if (path.contains("taiga")) return "taiga";
         if (path.contains("ocean")) return "ocean";
+        if (path.contains("cave") || path.contains("underground")) return "cave";
         return "plains"; // Default
     }
 
@@ -741,9 +748,10 @@ public class MVSCommands {
                path.contains("beach") || path.contains("shore") || path.contains("desert") ||
                path.contains("dune") || path.contains("sand") || path.contains("badlands") ||
                path.contains("mesa") || path.contains("savanna") || path.contains("shrubland") ||
-               path.contains("snow") || path.contains("ice") || path.contains("frozen") ||
+               path.contains("snow") || path.contains("ice") || path.contains("frozen") || path.contains("peaks") ||
                path.contains("taiga") || path.contains("pine") || path.contains("spruce") ||
                path.contains("ocean") || path.contains("sea") || path.contains("river") ||
+               path.contains("cave") || path.contains("deep_dark") || path.contains("dripstone") || path.contains("lush_cave") ||
                path.contains("plains") || path.contains("meadow") || path.contains("grassland") ||
                path.contains("forest");
     }
@@ -835,7 +843,7 @@ public class MVSCommands {
         // Define all standard categories in order
         String[] STANDARD_CATEGORIES = {
             "plains", "desert", "savanna", "snowy", "taiga",
-            "jungle", "swamp", "beach", "dark_forest", "ocean", "mushroom"
+            "jungle", "swamp", "beach", "dark_forest", "ocean", "mushroom", "cave"
         };
 
         for (String category : STANDARD_CATEGORIES) {
@@ -843,11 +851,23 @@ public class MVSCommands {
 
             lines.add("");
             lines.add("    // === " + category.toUpperCase() + " ===");
+
+            // Special comment for cave category
+            if (category.equals("cave")) {
+                lines.add("    // Cave biomes (deep_dark, dripstone_caves, lush_caves)");
+                lines.add("    // Villages sample at SURFACE level, so these rarely spawn");
+                lines.add("    // Keep empty unless you want villages in rare edge cases");
+            }
+
             lines.add("    " + category + ": [");
 
             if (villages.isEmpty()) {
                 // No villages detected for this category - show as empty with comment
-                lines.add("      // No villages detected - add modded villages here or leave empty");
+                if (category.equals("cave")) {
+                    lines.add("      // Intentionally empty - only modify if you want cave village spawns");
+                } else {
+                    lines.add("      // No villages detected - add modded villages here or leave empty");
+                }
             } else {
                 // Has villages - add them
                 for (String village : villages) {
