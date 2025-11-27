@@ -1,196 +1,139 @@
 # Multi Village Selector (MVS)
 
-A Minecraft mod that brings **village variety** to your world by intelligently replacing vanilla village spawns with villages from multiple mods, creating a diverse and immersive village experience.
+**Minecraft 1.21.1 | NeoForge & Fabric | MIT License**
 
-## Features
+Multi Village Selector gives you control over village spawning in Minecraft. Instead of each village mod fighting for spawn slots, MVS intercepts village generation and selects from **all your installed village mods** using configurable weights.
 
-- 🏘️ **Dynamic Village Variety** - Villages from CTOV, Towns & Towers, BCA, Terralith, and more spawn naturally
-- 🎲 **Weighted Selection** - Configure which villages spawn in each biome with custom weights
-- 🌍 **Biome-Aware** - Villages automatically match their biome (snowy villages in snow, desert villages in desert, etc.)
-- ⚙️ **Highly Configurable** - JSON5 config with full documentation and wildcard pattern support
-- 🎯 **Intelligent Spawning** - Includes weighted "empty" spawns for controlling village density in sparse biomes
-- ✅ **Compatible** - Works with vanilla jigsaw structures, no special dependencies required
+## The Problem MVS Solves
+
+When you install multiple village mods (CTOV, Towns & Towers, BCA, etc.), they compete for the same spawn locations. Some mods override others, some never spawn, and you have no control over the mix. MVS fixes this by:
+
+- **Intercepting** vanilla village spawns before any mod processes them
+- **Selecting** from all configured village structures using weighted random selection
+- **Respecting** biome rules so desert villages spawn in deserts, snowy villages in snow, etc.
+
+## Download
+
+<!-- TODO: Add Modrinth link after v0.3.0 release -->
+- **Modrinth**: Coming soon with v0.3.0 release
+- **GitHub Releases**: [Latest Release](https://github.com/RhettL/multi-village-selector/releases)
+
+**Requirements:**
+- Minecraft 1.21.1
+- NeoForge 21.1.80+ **or** Fabric Loader 0.16.0+ with Fabric API
+- [Architectury API](https://modrinth.com/mod/architectury-api) (required for both platforms)
 
 ## Quick Start
 
-### Installation
+1. **Install** MVS and Architectury API in your `mods/` folder
+2. **Launch** Minecraft once to generate the default config
+3. **Run** `/mvs generate` in-game to scan your installed mods
+4. **Review** the generated config at `config/multivillageselector.json5`
+5. **Restart** Minecraft to apply changes
 
-1. Download the latest release from [Releases](https://github.com/RhettL/multi-village-selector/releases)
-2. Place `multivillageselector-1.0.0.jar` in your `mods/` folder
-3. Launch Minecraft with NeoForge and your favorite village mods installed
+That's it! Villages from all your mods will now spawn with equal representation.
 
-### Basic Configuration
+For detailed setup instructions, see the **[Getting Started Guide](docs/GettingStarted.md)**.
 
-The mod creates `config/multivillageselector.json5` on first launch with sensible defaults.
+## Configuration
 
-**For best results with CTOV:**
-Edit `config/ctov-common.toml`:
-```toml
-[structures]
-    generatesmallVillage = false
-    generatemediumVillage = false
-    generatelargeVillage = false
-```
-
-**For Cobblemon Additions (BCA) users:**
-Added special casing for BCA villages. if BCA is installed when running `/mvs generate` it will add the needed changes 
-to catch BCA spawn attempts.
-
-**Note for BCA 4.0.1:** The current version has a minor configuration bug that is being investigated -- so you can't 
-disable vanilla overriding. CristelLib may auto-generate configs in `config/cristellib/cobblemon_additions/*`, but BCA 
-does not read these configs at the moment. MVS handles BCA villages correctly regardless. Future BCA releases may fix 
-this - check release notes for changes.
-
-## In-Game Commands
-
-MVS includes debug commands to help you understand and configure village spawning:
-
-```
-/mvs biome              # Show current biome, location, and category
-/mvs biome <biome_id>   # Look up category for specific biome
-/mvs pools              # List all configured categories
-/mvs pools <category>   # Show structures and weights in a pool
-/mvs help               # Show command help
-```
-
-**Example:** Walk into a biome and run `/mvs biome` to see:
-- Your exact coordinates
-- The biome ID (e.g., `minecraft:plains`)
-- Biome temperature
-- Which category MVS uses (e.g., `plains`)
-- How many structures can spawn there
-
-All commands require OP level 2. See the [Commands Guide](docs/Commands.md) for full documentation and examples.
-
-## How It Works
-
-Multi Village Selector intercepts village spawn attempts and replaces them with villages selected from configured pools:
+MVS uses a JSON5 config file with three main sections:
 
 ```json5
-plains: [
-  { structure: "minecraft:village_plains", weight: 10 },
-  { pattern: "towns_and_towers:village_*plains", weight: 30 },
-  { pattern: "ctov:*/village_plains", weight: 30 },
-  { pattern: "bca:village/default_*", weight: 25 },
-]
+{
+  // Which structure sets MVS controls (usually just villages)
+  intercept_structure_sets: ["minecraft:villages"],
+
+  // Your village structures with per-biome weights
+  structure_pool: [
+    { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
+    { structure: "ctov:village_plains", biomes: {"#minecraft:is_plains": 10} },
+    // ... more structures
+  ],
+
+  // Optional: Control spawn frequency per biome
+  biome_frequency: {
+    "#minecraft:is_ocean": 0.3,  // 30% spawn rate in oceans
+  }
+}
 ```
 
-Villages are selected randomly based on weights, ensuring variety while respecting biome appropriateness.
+See the **[Configuration Guide](docs/Configuration.md)** for complete documentation.
 
-## Scope & Limitations
+## Commands
 
-### Overworld Villages Only
+```bash
+/mvs generate              # Scan mods and generate config
+/mvs biome                 # Show current biome info
+/mvs structure biomes <id> # Show biome rules for a structure
+/mvs help                  # Show all commands
+```
 
-**Important:** Multi Village Selector is specifically designed for **Overworld village variety** and only operates in the Overworld dimension.
+See the **[Commands Reference](docs/Commands.md)** for full documentation.
 
-**What this means:**
-- ✅ **Overworld villages** - Fully supported with intelligent biome matching
-- ❌ **Nether structures** - Fortresses, bastions, etc. are not intercepted
-- ❌ **End structures** - End cities, ships, etc. are not intercepted
-- ❌ **Custom dimensions** - Modded dimensions are not supported
+## Supported Mods
 
-**Why this limitation?**
+MVS works with any mod that adds village structures through Minecraft's jigsaw system:
 
-Supporting structures across all dimensions (nether fortresses, bastion remnants, end cities, etc.) would be a completely different feature requiring:
-- Different structure pools per dimension
-- Different biome categorization logic per dimension
-- Nether/End-specific structure handling
+- **Vanilla Minecraft** - All 5 village types
+- **CTOV** (ChoiceTheorem's Overhauled Village)
+- **Towns & Towers**
+- **Cobblemon Additions (BCA)**
+- **Terralith**
+- **Better Villages**
+- And many more...
 
-This would transform MVS from a focused **village variety** tool into a general-purpose **structure pooling** framework.
-
-### Future Possibilities
-
-A generalized **Multi Structure Selector** mod may materialize in the future to handle:
-- Cross-dimension structure replacement
-- Non-village structures (temples, monuments, etc.)
-- Custom dimension support
-- More complex structure pool logic
-
-For now, MVS stays focused on its core purpose: **bringing village variety to the Overworld**.
+Some mods require disabling their own village spawning. See **[Mod Compatibility](docs/ModCompatibility.md)** for setup instructions.
 
 ## Documentation
 
-- 📖 **[Configuration Guide](docs/Configuration.md)** - Detailed config options and examples
-- 💻 **[Commands Reference](docs/Commands.md)** - In-game debug commands and usage examples
-- 🔧 **[Mod Compatibility](docs/ModCompatibility.md)** - Which mods work how with MVS
-- ❓ **[Troubleshooting](docs/Troubleshooting.md)** - Common issues and solutions
+| Guide | Description |
+|-------|-------------|
+| **[Getting Started](docs/GettingStarted.md)** | Installation and first-time setup |
+| **[Configuration](docs/Configuration.md)** | Complete config reference |
+| **[Mod Compatibility](docs/ModCompatibility.md)** | Per-mod setup instructions |
+| **[Commands](docs/Commands.md)** | In-game command reference |
+| **[Spacing Guide](docs/SpacingGuide.md)** | Controlling village density |
+| **[Troubleshooting](docs/Troubleshooting.md)** | Common issues and solutions |
+| **[Project Scope](docs/Scope.md)** | Design philosophy and limitations |
 
-## Supported Village Mods
+## FAQ
 
-- ✅ **Vanilla Minecraft** - All 5 vanilla village types
-- ✅ **CTOV** (ChoiceTheorem's Overhauled Village) - 100+ village variants
-- ✅ **Cobblemon Additions (BCA)** - v4.0.1+ with special structure set override handling
-- ✅ **Towns & Towers** - Themed and exclusive villages
-- ✅ **Terralith** - Fortified villages
-- ✅ **Villages & Pillages** - Additional village types
-- ✅ Any mod using vanilla jigsaw structure system
+**Q: Do I need village mods installed?**
+A: MVS works with vanilla, but you'll only see vanilla villages. Install village mods like CTOV or Towns & Towers for variety.
 
-See [Mod Compatibility](docs/ModCompatibility.md) for detailed configuration per mod.
+**Q: Why aren't my villages spawning?**
+A: Check the [Troubleshooting Guide](docs/Troubleshooting.md). Common causes: mod conflicts, biome mismatches, or spacing settings.
 
-## Requirements
+**Q: Can MVS control other structures (temples, mansions)?**
+A: Currently MVS focuses on villages. See [Scope](docs/Scope.md) for design rationale.
 
-- **Minecraft**: 1.21.1
-- **NeoForge**: 21.1.80+
-- **Java**: 21
-- **Dependencies**: None (village mods are optional but recommended)
-
-## Configuration Example
-
-Control village density per biome with weighted empty spawns:
-
-```json5
-ocean: [
-  { pattern: "joshie:village_ocean", weight: 20 },
-  { pattern: "towns_and_towers:village_ocean", weight: 20 },
-  { empty: true, weight: 60 }, // 60% chance no village spawns
-]
-```
-
-This makes ocean villages rare and special, while keeping land biomes fully populated.
-
-## Performance
-
-MVS operates during world generation and has minimal performance impact:
-
-- ✅ No runtime overhead (only runs during chunk generation)
-- ✅ No custom structure placement (uses vanilla systems)
-- ✅ Compatible with all structure mods
-
-## Building
-
-```bash
-./gradlew build
-```
-
-The built JAR will be in `build/libs/multivillageselector-1.0.0.jar`
-
-## License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+**Q: Fabric or NeoForge?**
+A: Both! MVS v0.3.0+ supports both platforms via Architectury.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please:
+
+1. Fork the repository
+2. Create a feature branch
+3. Submit a Pull Request
+
+For bug reports and feature requests, use [GitHub Issues](https://github.com/RhettL/multi-village-selector/issues).
 
 ## Authors
 
-**Project Concept:** [RhettL](https://github.com/RhettL)
+**Project Design:** [RhettL](https://github.com/RhettL)
 
-**Implementation:** This mod and all code were produced entirely by **Claude Code** (Claude Sonnet 4.5), an AI coding assistant by Anthropic. RhettL provided guidance and design direction but takes no credit for the code implementation.
+**Implementation:** This mod was developed entirely with [Claude Code](https://claude.ai/code) (Claude Opus 4.5), an AI coding assistant by Anthropic. RhettL provided design direction and testing.
 
-**Credit Statement:** RhettL accepts no credit for the code, implementation, or technical aspects of this mod. All programming work was performed by Claude Code under RhettL's direction.
+## License
 
-## Support & Community
-
-- 🐛 **Issues**: [GitHub Issues](https://github.com/RhettL/multi-village-selector/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/RhettL/multi-village-selector/discussions)
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Thanks to all village mod creators for their amazing structures
-- Built with [NeoForge](https://neoforged.net/)
-- Config parsing powered by [json5-java](https://github.com/marhali/json5-java)
-
----
-
-**Note:** This mod requires village mods to provide variety. With only vanilla villages, it will select from vanilla villages. Install CTOV, Towns & Towers, BCA, or other village mods for full effect!
+- Village mod creators for their amazing structures
+- [Architectury](https://architectury.dev/) for multi-loader support
+- [json5-java](https://github.com/marhali/json5-java) for config parsing
+- [NeoForge](https://neoforged.net/) and [Fabric](https://fabricmc.net/) teams

@@ -1,0 +1,376 @@
+package com.rhett.multivillageselector.commands.structure;
+
+import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.rhett.multivillageselector.MVSCommon;
+import com.rhett.multivillageselector.util.BiomeRuleResolver;
+import com.rhett.multivillageselector.util.BiomeRules;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.core.Holder;
+import net.minecraft.core.Registry;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.level.biome.Biome;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Handles all /mvs structure subcommands
+ * Commands for inspecting structure biome rules (MVS config or vanilla registry)
+ */
+public class StructureCommands {
+
+    /**
+     * Handle /mvs structure list
+     * Lists all structures in the structure_pool (including empty entries)
+     */
+    public static int executeList(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            var registryAccess = source.getServer().registryAccess();
+            var pool = com.rhett.multivillageselector.config.MVSConfig.structurePool;
+
+            if (pool.isEmpty()) {
+                source.sendFailure(Component.literal("Structure pool is empty!"));
+                return 0;
+            }
+
+            // Header
+            source.sendSuccess(() -> Component.literal("=== MVS Structure Pool ===")
+                .withStyle(ChatFormatting.GOLD), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+            source.sendSuccess(() -> Component.literal("Total: " + pool.size() + " entries")
+                .withStyle(ChatFormatting.AQUA), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Count empty vs non-empty
+            long emptyCount = pool.stream().filter(s -> s.isEmpty).count();
+            long structureCount = pool.size() - emptyCount;
+
+            source.sendSuccess(() -> Component.literal("Structures: " + structureCount)
+                .withStyle(ChatFormatting.GREEN), false);
+            source.sendSuccess(() -> Component.literal("Empty entries: " + emptyCount)
+                .withStyle(ChatFormatting.YELLOW), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // List structures
+            source.sendSuccess(() -> Component.literal("Structures:")
+                .withStyle(ChatFormatting.YELLOW), false);
+
+            int count = 0;
+            for (var configured : pool) {
+                if (configured.isEmpty) {
+                    continue; // Skip empty for now
+                }
+
+                String structureId = configured.structure.toString();
+                int tagCount = configured.biomes.size();
+
+                final String line = "  " + structureId + " (" + tagCount + " biome tags)";
+                source.sendSuccess(() -> Component.literal(line)
+                    .withStyle(ChatFormatting.GRAY), false);
+
+                count++;
+                if (count >= 15) {
+                    final int remaining = (int)structureCount - count;
+                    if (remaining > 0) {
+                        source.sendSuccess(() -> Component.literal("  ... and " + remaining + " more")
+                            .withStyle(ChatFormatting.DARK_GRAY), false);
+                    }
+                    break;
+                }
+            }
+
+            // List empty entries
+            if (emptyCount > 0) {
+                source.sendSuccess(() -> Component.literal(""), false);
+                source.sendSuccess(() -> Component.literal("Empty Entries:")
+                    .withStyle(ChatFormatting.YELLOW), false);
+
+                int emptyShown = 0;
+                for (var configured : pool) {
+                    if (!configured.isEmpty) {
+                        continue;
+                    }
+
+                    int tagCount = configured.biomes.size();
+                    int weight = configured.biomes.values().stream().findFirst().orElse(0);
+
+                    final String line = "  (empty) - weight: " + weight + ", tags: " + tagCount;
+                    source.sendSuccess(() -> Component.literal(line)
+                        .withStyle(ChatFormatting.GRAY), false);
+
+                    emptyShown++;
+                    if (emptyShown >= 10) {
+                        final int remaining = (int)emptyCount - emptyShown;
+                        if (remaining > 0) {
+                            source.sendSuccess(() -> Component.literal("  ... and " + remaining + " more")
+                                .withStyle(ChatFormatting.DARK_GRAY), false);
+                        }
+                        break;
+                    }
+                }
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            MVSCommon.LOGGER.error("Error in structure list command", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Handle /mvs structure biomes <structure-name> [full]
+     * Shows all allowed biomes for a structure (from MVS config or vanilla registry)
+     * @param showFull if true, shows all biomes without truncation
+     */
+    public static int executeBiomes(CommandContext<CommandSourceStack> context, boolean showFull) {
+        CommandSourceStack source = context.getSource();
+        String structureId = net.minecraft.commands.arguments.ResourceLocationArgument.getId(context, "structure").toString();
+
+        try {
+            var registryAccess = source.getServer().registryAccess();
+            BiomeRules rules = BiomeRuleResolver.getEffectiveRules(structureId, registryAccess);
+
+            if (rules.isEmpty()) {
+                source.sendFailure(Component.literal("Structure not found: " + structureId));
+                return 0;
+            }
+
+            // Header
+            String headerSuffix = showFull ? " (full)" : "";
+            source.sendSuccess(() -> Component.literal("=== Biome Rules for " + structureId + headerSuffix + " ===")
+                .withStyle(ChatFormatting.GOLD), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Source
+            String sourceLabel = switch (rules.source) {
+                case MVS_CONFIG -> "MVS Config (structure_pool)";
+                case VANILLA_REGISTRY -> "Vanilla Registry";
+                default -> "Unknown";
+            };
+            source.sendSuccess(() -> Component.literal("Source: " + sourceLabel)
+                .withStyle(ChatFormatting.AQUA), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Show tags
+            if (!rules.tags.isEmpty()) {
+                source.sendSuccess(() -> Component.literal("Biome Tags:")
+                    .withStyle(ChatFormatting.YELLOW), false);
+
+                int maxBiomesPerTag = showFull ? Integer.MAX_VALUE : 15;
+
+                for (String tag : rules.tags) {
+                    int weight = rules.weights.getOrDefault(tag, 0);
+                    String weightStr = weight > 0 ? " (weight: " + weight + ")" : "";
+
+                    final String finalTag = tag;
+                    final String finalWeightStr = weightStr;
+                    source.sendSuccess(() -> Component.literal("  " + finalTag + finalWeightStr)
+                        .withStyle(ChatFormatting.WHITE), false);
+
+                    // Expand tag to show actual biomes
+                    List<String> biomes = expandTag(tag, registryAccess);
+                    if (!biomes.isEmpty()) {
+                        int showCount = Math.min(maxBiomesPerTag, biomes.size());
+                        for (String biome : biomes.subList(0, showCount)) {
+                            final String finalBiome = biome;
+                            source.sendSuccess(() -> Component.literal("    - " + finalBiome)
+                                .withStyle(ChatFormatting.GRAY), false);
+                        }
+                        if (!showFull && biomes.size() > maxBiomesPerTag) {
+                            final int remaining = biomes.size() - maxBiomesPerTag;
+
+                            Component expandLink = Component.literal("    ... and " + remaining + " more")
+                                .withStyle(net.minecraft.network.chat.Style.EMPTY
+                                    .withColor(ChatFormatting.AQUA)
+                                    .withUnderlined(true)
+                                    .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                                        "/mvs structure biomes \"" + structureId + "\" full"
+                                    ))
+                                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                                        Component.literal("Click to show all biomes")
+                                    ))
+                                );
+
+                            source.sendSuccess(() -> expandLink, false);
+                        }
+                    }
+                }
+            }
+
+            // Show direct biomes
+            if (!rules.directBiomes.isEmpty()) {
+                source.sendSuccess(() -> Component.literal(""), false);
+                source.sendSuccess(() -> Component.literal("Direct Biomes:")
+                    .withStyle(ChatFormatting.YELLOW), false);
+
+                for (String biome : rules.directBiomes) {
+                    final String finalBiome = biome;
+                    source.sendSuccess(() -> Component.literal("  - " + finalBiome)
+                        .withStyle(ChatFormatting.WHITE), false);
+                }
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            MVSCommon.LOGGER.error("Error in structure biomes command", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Handle /mvs structure test <structure-name> <biome>
+     * Tests if a structure can spawn in a specific biome
+     */
+    public static int executeTest(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String structureId = net.minecraft.commands.arguments.ResourceLocationArgument.getId(context, "structure").toString();
+        String biomeId = net.minecraft.commands.arguments.ResourceLocationArgument.getId(context, "biome").toString();
+
+        try {
+            var registryAccess = source.getServer().registryAccess();
+            BiomeRules rules = BiomeRuleResolver.getEffectiveRules(structureId, registryAccess);
+
+            if (rules.isEmpty()) {
+                source.sendFailure(Component.literal("Structure not found: " + structureId));
+                return 0;
+            }
+
+            // Get biome holder
+            Registry<Biome> biomeRegistry = registryAccess.registryOrThrow(Registries.BIOME);
+            ResourceLocation biomeLocation = ResourceLocation.parse(biomeId);
+            var biomeHolderOpt = biomeRegistry.getHolder(
+                net.minecraft.resources.ResourceKey.create(Registries.BIOME, biomeLocation)
+            );
+
+            if (biomeHolderOpt.isEmpty()) {
+                source.sendFailure(Component.literal("Biome not found: " + biomeId));
+                return 0;
+            }
+
+            Holder<Biome> biomeHolder = biomeHolderOpt.get();
+
+            // Test match
+            boolean matches = rules.matches(biomeHolder);
+
+            // Header
+            source.sendSuccess(() -> Component.literal("=== Structure Biome Test ===")
+                .withStyle(ChatFormatting.GOLD), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Result
+            if (matches) {
+                source.sendSuccess(() -> Component.literal("✓ " + structureId + " CAN spawn in " + biomeId)
+                    .withStyle(ChatFormatting.GREEN), false);
+
+                // Show which tag matched
+                String matchingTag = rules.getMatchingTag(biomeHolder);
+                if (matchingTag != null) {
+                    int weight = rules.weights.getOrDefault(matchingTag, 0);
+                    String weightStr = weight > 0 ? " (weight: " + weight + ")" : "";
+
+                    final String finalTag = matchingTag;
+                    final String finalWeightStr = weightStr;
+                    source.sendSuccess(() -> Component.literal("  Matched via: " + finalTag + finalWeightStr)
+                        .withStyle(ChatFormatting.AQUA), false);
+                }
+            } else {
+                source.sendSuccess(() -> Component.literal("✗ " + structureId + " CANNOT spawn in " + biomeId)
+                    .withStyle(ChatFormatting.RED), false);
+
+                // Show configured tags for debugging
+                if (!rules.tags.isEmpty()) {
+                    source.sendSuccess(() -> Component.literal("  Configured tags:")
+                        .withStyle(ChatFormatting.GRAY), false);
+                    for (String tag : rules.tags.subList(0, Math.min(3, rules.tags.size()))) {
+                        final String finalTag = tag;
+                        source.sendSuccess(() -> Component.literal("    " + finalTag)
+                            .withStyle(ChatFormatting.DARK_GRAY), false);
+                    }
+                    if (rules.tags.size() > 3) {
+                        final int remaining = rules.tags.size() - 3;
+                        source.sendSuccess(() -> Component.literal("    ... and " + remaining + " more")
+                            .withStyle(ChatFormatting.DARK_GRAY), false);
+                    }
+                }
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            MVSCommon.LOGGER.error("Error in structure test command", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Expand a biome tag or pattern to get all matching biomes.
+     * - For #tags: returns biomes with that tag
+     * - For patterns (containing *): returns biome IDs matching the pattern
+     * - For literal biome IDs: returns the ID if it exists
+     */
+    private static List<String> expandTag(String tagOrPattern, net.minecraft.core.RegistryAccess registryAccess) {
+        List<String> biomes = new ArrayList<>();
+        Registry<Biome> biomeRegistry = registryAccess.registryOrThrow(Registries.BIOME);
+
+        // Case 1: Tag (starts with #)
+        if (tagOrPattern.startsWith("#")) {
+            // Check if it's a pattern or literal tag
+            String tagPart = tagOrPattern.substring(1);
+            if (tagPart.contains("*")) {
+                // Pattern tag like #*:*ocean* - would match multiple tags
+                // For display, show that it's a pattern
+                return biomes; // Can't easily expand tag patterns
+            }
+
+            try {
+                ResourceLocation tagId = ResourceLocation.parse(tagPart);
+                TagKey<Biome> tagKey = TagKey.create(Registries.BIOME, tagId);
+
+                for (Holder<Biome> biomeHolder : biomeRegistry.holders().toList()) {
+                    if (biomeHolder.is(tagKey)) {
+                        biomeHolder.unwrapKey().ifPresent(key ->
+                            biomes.add(key.location().toString())
+                        );
+                    }
+                }
+            } catch (Exception e) {
+                // Invalid tag - return empty list
+            }
+            return biomes;
+        }
+
+        // Case 2: Biome ID pattern (contains * but no #)
+        if (tagOrPattern.contains("*")) {
+            for (var entry : biomeRegistry.entrySet()) {
+                String biomeId = entry.getKey().location().toString();
+                if (com.rhett.multivillageselector.util.PatternMatcher.matches(biomeId, tagOrPattern)) {
+                    biomes.add(biomeId);
+                }
+            }
+            return biomes;
+        }
+
+        // Case 3: Literal biome ID
+        try {
+            ResourceLocation biomeId = ResourceLocation.parse(tagOrPattern);
+            if (biomeRegistry.containsKey(biomeId)) {
+                biomes.add(tagOrPattern);
+            }
+        } catch (Exception e) {
+            // Invalid biome ID
+        }
+
+        return biomes;
+    }
+}

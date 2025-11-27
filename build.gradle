@@ -1,11 +1,11 @@
 plugins {
-    id 'java'
-    id 'net.neoforged.moddev' version '2.0.36-beta'
-    id 'jacoco'
+    id "architectury-plugin" version "3.4-SNAPSHOT"
+    id "dev.architectury.loom" version "1.10-SNAPSHOT" apply false
+    id "com.github.johnrengelman.shadow" version "8.1.1" apply false
+    id "jacoco"
 }
 
 // Load local gradle properties if they exist (for dev overrides)
-// This must come after plugins {} block per Gradle requirements
 def localPropertiesFile = file('gradle.properties.local')
 if (localPropertiesFile.exists()) {
     def localProperties = new Properties()
@@ -15,142 +15,51 @@ if (localPropertiesFile.exists()) {
     }
 }
 
-version = '0.2.0'
-group = 'com.rhett.multivillageselector'
-
-base {
-    archivesName = 'multivillageselector'
+architectury {
+    minecraft = project.minecraft_version
 }
 
-java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+subprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
+    apply plugin: "maven-publish"
 
-repositories {
-    mavenCentral()
-    maven {
-        name = "Architectury"
-        url = "https://maven.architectury.dev/"
-    }
-}
-
-neoForge {
-    version = '21.1.80'
-
-    runs {
-        client {
-            client()
-            programArgument '--mixin.config=multi_village_selector.mixins.json'
-            // Pass development flag to runtime (Java equivalent of NODE_ENV)
-            // Reads from gradle.properties.local if exists, otherwise gradle.properties
-            if (project.hasProperty('development')) {
-                systemProperty 'development', project.property('development')
-            }
-        }
-        server {
-            server()
-            programArgument '--mixin.config=multi_village_selector.mixins.json'
-            // Pass development flag to runtime
-            if (project.hasProperty('development')) {
-                systemProperty 'development', project.property('development')
-            }
+    // Platform modules set their own archivesName with platform suffix
+    // Only set base name for common module
+    if (project.name == "common") {
+        base {
+            archivesName = project.archives_base_name
         }
     }
+    version = project.mod_version
+    group = project.maven_group
 
-    mods {
-        multivillageselector {
-            sourceSet sourceSets.main
-            sourceSet sourceSets.test  // Add test sources to mod
-        }
+    repositories {
+        mavenCentral()
+        maven { url "https://maven.architectury.dev/" }
+        maven { url "https://maven.neoforged.net/releases/" }
     }
 
-    // Enable unit tests to access Minecraft classes
-    unitTest {
-        enable()
-    }
-}
-
-dependencies {
-    // Architectury API - cross-platform abstractions
-    // Using modImplementation for NeoForge Gradle
-    implementation 'dev.architectury:architectury-neoforge:13.0.6'
-
-    // Mixin dependencies are provided by NeoForge
-    compileOnly 'org.spongepowered:mixin:0.8.5'
-    annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
-
-    // JSON5 parser - bundle into mod JAR
-    implementation 'de.marhali:json5-java:3.0.0'
-    jarJar(group: 'de.marhali', name: 'json5-java', version: '[3.0.0,4.0.0)')
-
-    // JUnit 5 for testing
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.10.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.10.0'
-
-    // Mockito for mocking Minecraft classes in tests
-    testImplementation 'org.mockito:mockito-core:5.11.0'
-    testImplementation 'org.mockito:mockito-junit-jupiter:5.11.0'
-}
-
-test {
-    useJUnitPlatform()
-
-    // Ensure tests run in headless mode
-    systemProperty 'java.awt.headless', 'true'
-
-    // Provide more memory for tests
-    maxHeapSize = '2G'
-
-    // Show test output
-    testLogging {
-        events "passed", "skipped", "failed"
-        exceptionFormat "full"
-        showStandardStreams = false
+    dependencies {
+        // JSON5 parser - used by all modules
+        implementation "de.marhali:json5-java:3.0.0"
     }
 
-    // Fail fast in CI
-    if (System.getenv("CI") != null) {
-        failFast = true
+    java {
+        withSourcesJar()
+        toolchain.languageVersion = JavaLanguageVersion.of(21)
     }
 
-    // Generate coverage report after tests run
-    finalizedBy jacocoTestReport
-}
-
-// JaCoCo test coverage configuration
-jacoco {
-    toolVersion = "0.8.11"
-}
-
-jacocoTestReport {
-    dependsOn test
-
-    reports {
-        html.required = true
-        xml.required = true
-        csv.required = false
-    }
-
-    // Exclude generated/framework code and untestable code from coverage
-    afterEvaluate {
-        classDirectories.setFrom(files(classDirectories.files.collect {
-            fileTree(dir: it, exclude: [
-                '**/mixin/**',                      // Mixin classes (framework code)
-                '**/MultiVillageSelector.class',    // Main mod entry point (just registration)
-                '**/commands/**'                    // Commands require Minecraft server runtime
-            ])
-        }))
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release = 21
     }
 }
 
-jacocoTestCoverageVerification {
-    violationRules {
-        rule {
-            limit {
-                minimum = 0.70  // Require 70% coverage
-            }
-        }
+allprojects {
+    apply plugin: "java"
+
+    java {
+        toolchain.languageVersion = JavaLanguageVersion.of(21)
     }
 }
-
-// Optional: Make check task verify coverage threshold
-// Uncomment to enforce coverage requirements in CI
-// check.dependsOn jacocoTestCoverageVerification

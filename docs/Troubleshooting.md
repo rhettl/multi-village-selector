@@ -1,436 +1,251 @@
 # Troubleshooting Guide
 
-Common issues and solutions for Multi Village Selector.
+Common issues and solutions for Multi Village Selector v0.3.0+.
 
 ## Table of Contents
 
-- [Using Commands for Debugging](#using-commands-for-debugging)
+- [Quick Diagnostics](#quick-diagnostics)
 - [Villages Not Spawning](#villages-not-spawning)
 - [Wrong Villages in Wrong Biomes](#wrong-villages-in-wrong-biomes)
-- [Only One Mod's Villages Spawning](#only-one-mods-villages-spawning)
-- [Too Many/Too Few Villages](#too-manytoo-few-villages)
+- [Only One Mod's Villages Spawn](#only-one-mods-villages-spawn)
+- [Too Many or Too Few Villages](#too-many-or-too-few-villages)
 - [Config Not Loading](#config-not-loading)
-- [Structure Errors in Logs](#structure-errors-in-logs)
 - [Debug Mode](#debug-mode)
-- [Nether/End Structures Not Affected](#netherend-structures-not-affected)
+- [Getting Help](#getting-help)
 
----
+## Quick Diagnostics
 
-## Using Commands for Debugging
+Before diving into logs, use these commands:
 
-MVS provides several in-game commands that make troubleshooting much easier. **Use these commands first** before diving into logs and config files.
-
-### Quick Diagnostic Commands
-
-| Problem | Command to Use | What It Tells You |
-|---------|----------------|-------------------|
-| Village in wrong biome | `/mvs biome` | Current biome category and available structures |
-| Want to check specific biome | `/mvs biome <biome_id>` | How a biome is categorized before visiting |
-| Unbalanced village variety | `/mvs pools <category>` | Weight percentages for all villages in pool |
-| Need fresh config | `/mvs generate` | Auto-generate config from installed mods |
-| Modded biomes not categorized | `/mvs biome list` | Show UNCATEGORIZED biomes that need overrides |
-| Check all pools | `/mvs pools` | List all categories and structure counts |
-
-### Common Debugging Workflows
-
-#### Workflow 1: Village in Wrong Biome
-```
-1. Stand at the village
-2. /mvs biome
-   → Check the "Category" field
-   → Check "Available Structures" count
-3. /mvs pools <category>
-   → Review the village list and weights
-   → See if the village you got is in the pool
-4. Adjust config weights if needed
-5. Restart and test in new world
-```
-
-#### Workflow 2: Setting Up Modded Biomes
-```
-1. /mvs biome list
-   → Look at UNCATEGORIZED section
-   → These biomes use DEFAULT pool
-2. For each biome you want to customize:
-   /mvs biome <mod:biome>
-   → Check current category assignment
-3. Add overrides to config:
-   "biome_category_overrides": {
-     "modname:biome": "desired_category"
-   }
-4. Restart and verify:
-   /mvs biome <mod:biome>
-   → Should show "Source: Config Override"
-```
-
-#### Workflow 3: Initial Setup (Recommended)
-```
-1. Install all village mods you want
-2. /mvs generate
-   → Auto-generates config
-   → Click file link in chat
-3. Review generated config:
-   - Check village weights (equal 10 by default)
-   - Check biome_category_overrides suggestions
-   - Adjust as desired
-4. Copy to config/multivillageselector.json5
-5. Restart Minecraft
-6. Verify with:
-   /mvs pools plains
-   /mvs biome list
-```
-
-#### Workflow 4: Balancing Village Variety
-```
-1. /mvs pools <category>
-   → Note current percentages
-   → Identify over/under-represented villages
-2. Edit config weights
-3. Restart
-4. /mvs pools <category>
-   → Verify new percentages
-```
-
-### Command Prerequisites
-
-- **Permission Required:** OP level 2 (`/op <username>`)
-- **Single-player:** Commands work automatically
-- **Server:** Requires OP permission
-
-For complete command documentation, see [Commands Reference](Commands.md).
-
----
+| Issue | Command | What to Check |
+|-------|---------|---------------|
+| No villages | `/mvs biome` | Does it show structures for this biome? |
+| Wrong villages | `/mvs structure biomes <id>` | Are biome rules correct? |
+| Need fresh config | `/mvs generate` | Generate from installed mods |
 
 ## Villages Not Spawning
 
-### Symptom
-No villages generating in new worlds, or very sparse village spawning.
+### Enable Debug Logging First
 
-### Quick Command Check First
-
-Before diving into logs, try these commands:
-```
-/mvs pools           → Check if any categories have structures
-/mvs pools plains    → Verify plains pool has villages
-/mvs biome           → Stand somewhere and check category + available structures
-```
-
-If `/mvs pools <category>` shows 0 structures or "Available Structures: None", your config may be misconfigured. Try `/mvs generate` to create a fresh config.
-
-### Diagnosis Workflow
-
-#### Step 1: Enable Debug Logging
-
-Edit `config/multivillageselector.json5`:
 ```json5
 {
-  enabled: true,
-  debug_logging: true,  // Set to true
-  // ...
+  debug_logging: true
 }
 ```
 
-#### Step 2: Create New World & Explore
+Then check `logs/latest.log` for MVS entries.
 
-- Create a brand new world (old worlds don't regenerate)
-- Explore 1000+ blocks from spawn (spawn zone has no structures)
-- Check logs for MVS activity
+### Common Causes
 
-#### Step 3: Check Logs
+#### 1. Empty structure_pool
 
-Look for these patterns in `logs/latest.log`:
+If `structure_pool` is empty, MVS has nothing to select.
 
-✅ **Good - MVS is working:**
-```
-[MVS-DEBUG] Structure attempt: minecraft:village_plains at chunk [X, Z]
-===== MVS: INTERCEPTED =====
-Original: minecraft:village_plains
-Biome: minecraft:plains (at Y=75) → Category: plains
-SELECTED: ctov:large/village_plains
-✅ Successfully placed...
-===== MVS: SUCCESS =====
-```
+**Fix:** Run `/mvs generate` and copy the output to your config.
 
-❌ **Bad - No village attempts:**
-```
-// Empty - no MVS debug messages at all
-```
+#### 2. intercept_structure_sets is Empty
 
-### Common Causes & Solutions
+MVS won't intercept villages if this is empty.
 
-#### Cause 1: CTOV/BCA Not Disabled Properly
-
-##### If using CTOV
-
-Check `config/ctov-common.toml`:
-```toml
-[structures]
-    generatesmallVillage = false  # Must be false
-    generatemediumVillage = false  # Must be false
-    generatelargeVillage = false  # Must be false
-```
-
-##### Solution
-Edit config, restart Minecraft, create NEW world
-
-#### Cause 2: BCA Overriding But Not in replace_of
-
-If you see in logs:
-```
-[MVS-DEBUG] Structure attempt: bca:village/default_small
-```
-But no interception, BCA villages aren't in your `replace_of` list.
-
-##### Solution
-Add BCA villages to `replace_of`:
+**Fix:**
 ```json5
-replace_of: [
-  "minecraft:village_plains",
-  "minecraft:village_desert",
-  "minecraft:village_savanna",
-  "minecraft:village_snowy",
-  "minecraft:village_taiga",
-  "bca:village/default_small",
-  "bca:village/default_mid",
-  "bca:village/default_large",
-  "bca:village/dark_mid",
-  "bca:village/dark_small",
-]
+intercept_structure_sets: ["minecraft:villages"]
 ```
 
-#### Cause 3: Weighted Empty Selected
+#### 3. No Structures Match Current Biome
 
-If you see in logs:
+If your structures have biome rules that don't match where you are.
+
+**Check with:**
 ```
-SELECTED: (empty - cancelling spawn)
-===== MVS: SPAWN CANCELLED (EMPTY) =====
+/mvs biome
+/mvs structure biomes minecraft:village_plains
 ```
 
-This is intentional! You have weighted empty spawns in your pool.
-
-##### Solution
-Reduce `empty` weights or remove them:
+**Fix:** Add `"*:*"` fallback pattern for structures you want everywhere:
 ```json5
-ocean: [
-  { pattern: "joshie:village_ocean", weight: 50 },
-  { empty: true, weight: 50 },  // Reduce this or remove
-]
+{ structure: "minecraft:village_plains", biomes: {"*:*": 10} }
 ```
 
-#### Cause 4: No Structures Available for Biome
+#### 4. Better Village Overriding Spacing
 
-If you see in logs:
-```
-No replacement structures available for biome category: mushroom
+Better Village overrides structure_set spacing at runtime.
+
+**Fix:** Edit `config/bettervillage_1.properties`:
+```properties
+boolean.villages.enabled_custom_config=false
 ```
 
-##### Solution
-Add structures to that biome category or add a DEFAULT fallback:
+#### 5. Biome Frequency Too Low
+
+If `biome_frequency` is set very low, most spawn attempts fail.
+
+**Check:**
 ```json5
-replace_with: {
-  DEFAULT: [
-    { structure: "minecraft:village_plains", weight: 10 },
-    // ... fallback villages
-  ],
-  // ... other categories
+biome_frequency: {
+  "*:*": 0.1  // Only 10% spawn rate!
 }
 ```
 
----
+**Fix:** Increase to reasonable value (0.5 - 1.0).
+
+### Debug Log Patterns
+
+**Good - MVS working:**
+```
+[MVS] Generation SUCCEEDED: minecraft:village_plains at chunk [12, -5]
+```
+
+**Bad - No attempts:**
+If you see no MVS entries, check:
+- `intercept_structure_sets` includes `"minecraft:villages"`
+- You explored beyond spawn (1000+ blocks)
+- It's a new world (old chunks don't regenerate)
 
 ## Wrong Villages in Wrong Biomes
 
-### Symptom
-Desert villages spawning in snow, ocean villages spawning on land, etc.
-
-### Quick Command Check First
-
-Stand at the problematic village and run:
-```
-/mvs biome           → Check biome category and source
-/mvs pools <category>→ See which villages can spawn here
-```
-
-This immediately shows:
-- What category the biome maps to
-- Whether it's from config override or automatic detection
-- Which villages are in the pool for this category
-
 ### Diagnosis
 
-**Enable debug logging** and check biome detection:
+Stand at the village and run:
 ```
-Biome: minecraft:desert (at Y=68) → Category: desert
+/mvs biome
 ```
 
-### Common Causes & Solutions
+Check which biome tags it has, then:
+```
+/mvs structure biomes <structure_id>
+```
 
-#### Cause 1: Biome Detection Mismatch
+See if the structure's biome rules match.
 
-Some modded biomes aren't automatically categorized correctly.
+### Common Causes
 
-##### Solution
-Use `biome_category_overrides`:
+#### 1. Structure Missing Biome Rules
+
+If a structure has no matching biome rule, it won't spawn there.
+
+**Fix:** Add the right biome tag:
 ```json5
-biome_category_overrides: {
-  "terralith:volcanic_peaks": "snowy",
-  "terralith:hot_spring": "taiga",
-  "modname:weird_biome": "plains",
+{
+  structure: "minecraft:village_desert",
+  biomes: {
+    "#minecraft:is_desert": 10,
+    "#minecraft:is_badlands": 5
+  }
 }
 ```
 
-##### How to find biome IDs
+#### 2. Universal Fallback Causing Issues
 
-**Method 1: Use Commands (Easiest)**
-```
-/mvs biome                           → Shows current biome ID
-/mvs biome list                      → Lists all biomes by category
-/mvs biome terralith:volcanic_peaks  → Check specific biome
-```
+If you use `"*:*"` as fallback, structures spawn everywhere.
 
-**Method 2: Debug Logging**
-- Enable debug logging
-- Find a village in the wrong biome
-- Check logs for: `Biome: terralith:volcanic_peaks`
-- Add that biome ID to overrides
+**Fix:** Remove `"*:*"` and use specific biome tags:
+```json5
+// Instead of:
+biomes: {"*:*": 10}
 
-#### Cause 2: Using DEFAULT Pool
-
-If you see:
-```
-No structures for desert, using DEFAULT
+// Use:
+biomes: {"#minecraft:is_plains": 10}
 ```
 
-You don't have a `desert` category defined, so MVS falls back to DEFAULT pool.
+#### 3. Modded Biome Not Tagged
 
-##### Solution
-Add specific biome categories or adjust your DEFAULT pool to have appropriate variety.
+Modded biomes may not have standard biome tags.
 
----
-
-## Only One Mod's Villages Spawning
-
-### Symptom
-Only seeing CTOV villages, or only BCA villages, no variety.
-
-### Quick Command Check First
-
-Check weight distribution:
-```
-/mvs pools plains    → See percentages for all villages
-/mvs pools desert    → Check other biomes too
+**Fix:** Use the biome ID directly:
+```json5
+biomes: {
+  "terralith:volcanic_peaks": 10
+}
 ```
 
-Look for unbalanced weights like:
-- `[500] (98.0%) ctov:large/village_plains` ← Too high!
-- `[10] (2.0%) minecraft:village_plains` ← Too low!
+## Only One Mod's Villages Spawn
 
 ### Diagnosis
 
-Check your `replace_with` pools and weights:
-```
-Selection Pool for plains (24 structures, total weight: 585):
-  - minecraft:village_plains (weight: 10, 1.7%)
-  - ctov:large/village_plains (weight: 500, 85.5%)  # TOO HIGH!
-```
+Check spawn distribution with debug logging. If one mod dominates, weights are unbalanced.
 
-### Solutions
+### Common Causes
 
-#### Solution 1: Balance Weights
-
-Lower dominant mod's weights:
-```json5
-plains: [
-  { structure: "minecraft:village_plains", weight: 10 },
-  { pattern: "ctov:*/village_plains", weight: 30 },  # Not 500!
-  { pattern: "towns_and_towers:village_*plains", weight: 30 },
-]
-```
-
-#### Solution 2: Check Pattern Matching
-
-Patterns might be too broad or not matching:
-```json5
-{ pattern: "ctov:*/village_*", weight: 30 }  // Matches EVERYTHING from CTOV!
-```
-
-vs
+#### 1. Unbalanced Weights
 
 ```json5
-{ pattern: "ctov:*/village_plains", weight: 30 }  // Only plains variants
+// BAD - CTOV will dominate
+{ structure: "ctov:village_plains", biomes: {"#minecraft:is_plains": 100} },
+{ structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
 ```
 
-#### Solution 3: Verify Mods Are Installed
-
-If you reference mod structures that aren't installed, they won't spawn:
+**Fix:** Balance weights:
+```json5
+{ structure: "ctov:village_plains", biomes: {"#minecraft:is_plains": 10} },
+{ structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
 ```
-ERROR: Replacement structure not found in registry: terralith:fortified_village
+
+#### 2. Pattern Too Broad
+
+A pattern matching too many structures can dominate the pool.
+
+**Check your patterns:** `ctov:*` matches ALL CTOV structures.
+
+#### 3. CTOV Still Spawning Naturally
+
+If you didn't disable CTOV's spawning, you get double villages.
+
+**Fix:** Edit `config/ctov-common.toml`:
+```toml
+[structures]
+    generatesmallVillage = false
+    generatemediumVillage = false
+    generatelargeVillage = false
 ```
 
-##### Solution
-Install the mod or remove from config
+## Too Many or Too Few Villages
 
----
+### Village Density Is NOT Controlled by MVS
 
-## Too Many/Too Few Villages
-
-### Symptom
-Villages every 100 blocks, or villages every 5000 blocks.
-
-### Diagnosis
+MVS controls **which** villages spawn, not **how often**.
 
 Village density is controlled by:
-1. **Structure spacing configs** (not MVS)
-2. **Weighted empty spawns** (MVS feature)
+- Structure set spacing (datapacks)
+- `biome_frequency` (MVS feature for per-biome control)
 
-### Solutions
+### For Too Many Villages
 
-#### For Too Many Villages
+1. **Check biome_frequency** - is it 1.0 everywhere?
+2. **Check spacing datapack** - see [Spacing Guide](SpacingGuide.md)
+3. **Check Better Village** - may override spacing
 
-##### Option 1: Adjust vanilla structure spacing
+### For Too Few Villages
 
-Edit `config/vanilla_structures/placement_structure_config.json5`:
-```json5
-"villages": {
-  "salt": 10387312,
-  "separation": 8,    // Min distance between villages (chunks)
-  "spacing": 34       // Max distance between village attempts (chunks)
-}
-```
-
-Increase spacing: `34 → 50` = villages further apart
-
-##### Option 2: Use weighted empty spawns
-
-```json5
-plains: [
-  { pattern: "*:village_*plains", weight: 40 },
-  { empty: true, weight: 60 },  // 60% chance no village spawns
-]
-```
-
-#### For Too Few Villages
-
-- Check if weighted empties are too high
-- Check structure spacing isn't too large
-- Verify villages are actually attempting to spawn (debug logs)
-
----
+1. **Check biome_frequency** - is it too low?
+2. **Check structure_pool** - is it empty for some biomes?
+3. **Explore more** - spawn zone (0-300 blocks) has no structures
 
 ## Config Not Loading
 
-### Symptom
-Changes to config don't take effect, or mod uses defaults.
+### Symptoms
+
+- Changes don't take effect
+- Default behavior instead of your settings
 
 ### Solutions
 
-#### Solution 1: Restart Minecraft
+#### 1. Restart Required
 
-Config is only loaded at startup. Changes require full restart. `/reload` does NOT reload MVS configuration.
+Config only loads at startup. `/reload` does NOT reload MVS config.
 
-#### Solution 2: Check JSON5 Syntax
+#### 2. Check JSON5 Syntax
 
-Common syntax errors:
+Common errors:
+
+```json5
+// WRONG - missing quote
+{ structure: minecraft:village_plains }
+
+// CORRECT
+{ structure: "minecraft:village_plains" }
+```
+
 ```json5
 // WRONG - missing comma
 {
@@ -445,236 +260,99 @@ Common syntax errors:
 }
 ```
 
-```json5
-// WRONG - trailing comma in array
-replace_of: [
-  "minecraft:village_plains",
-]
-
-// CORRECT - no trailing comma, or...
-replace_of: [
-  "minecraft:village_plains"
-]
-
-// ALSO CORRECT - trailing comma is fine in JSON5!
-replace_of: [
-  "minecraft:village_plains",
-]
-```
-
-Wait, JSON5 DOES support trailing commas. The issue is:
-
-```json5
-// WRONG - unquoted key with special chars
-biome-category: "plains"
-
-// CORRECT
-"biome-category": "plains"
-// OR
-biome_category: "plains"  // Underscores are fine unquoted
-```
-
-#### Solution 3: Check File Location
+#### 3. Check File Location
 
 Config must be at:
 ```
-minecraft/config/multivillageselector.json5
+<minecraft>/config/multivillageselector.json5
 ```
 
-NOT:
-- `mods/multivillageselector/multivillageselector.json5`
-- `config/mvs_config.json5` (old name)
+#### 4. Delete and Regenerate
 
-#### Solution 4: Delete and Regenerate
-
-If config is corrupted:
 1. Delete `config/multivillageselector.json5`
 2. Restart Minecraft
-3. Mod will create fresh default config
-
----
-
-## Structure Errors in Logs
-
-### Symptom
-```
-[minecraft/StructureTemplateManager]: Couldn't load structure ctov:village/desert_oasis/jobsite/butcher
-java.lang.RuntimeException: Unknown block type 'minecraft:gross_block'
-```
-
-### Diagnosis
-
-This is a **structure mod bug**, not MVS!
-
-MVS successfully:
-- ✅ Selected the structure
-- ✅ Placed the structure
-
-The structure mod provided:
-- ❌ Invalid structure template (bad block ID)
-
-### Solutions
-
-- **Ignore it:** Village still mostly generates, just missing one piece
-- **Report to structure mod:** Let CTOV/Towns & Towers/etc know about invalid blocks
-- **Not an MVS issue:** MVS did its job, structure quality is mod's responsibility
-
----
+3. Run `/mvs generate` for fresh config
 
 ## Debug Mode
 
-### Enabling Debug Mode
+### Enable Debug Logging
 
-Edit `config/multivillageselector.json5`:
 ```json5
 {
-  enabled: true,
-  debug_logging: true,  // Enable this
-  // ...
+  debug_logging: true,
+  debug_cmd: true  // Optional: enables /mvs debug commands
 }
 ```
 
-### What Debug Mode Shows
+### What Debug Shows
 
-#### Structure Interception
+**Structure Selection:**
 ```
-[MVS-DEBUG] Structure attempt: minecraft:village_plains at chunk [10, 20]
-```
-Shows every village spawn attempt MVS sees.
-
-#### Interception Decision
-```
-===== MVS: INTERCEPTED =====
-Original: minecraft:village_plains
-Location: X=160, Z=320
-```
-MVS decided to replace this village.
-
-#### Biome Detection
-```
-Biome: minecraft:plains (at Y=75) → Category: plains
-```
-Shows detected biome and category assignment.
-
-#### Selection Pool
-```
-Selection Pool for plains (24 structures, total weight: 585):
-  - minecraft:village_plains (weight: 10, 1.7%)
-  - ctov:large/village_plains (weight: 30, 5.1%)
-  - towns_and_towers:village_sunflower_plains (weight: 30, 5.1%)
-  ...
-```
-All available villages for this biome with their weights and probabilities.
-
-#### Random Selection
-```
-Random Roll: 287 out of 585 (seed: 1234567890)
-SELECTED: ctov:large/village_plains
-```
-Shows the random roll and what was selected.
-
-#### Placement Result
-```
-✅ Successfully placed ctov:large/village_plains at [160, 320]
-===== MVS: SUCCESS =====
-```
-Or:
-```
-ERROR: Replacement structure not found in registry: modname:village
-===== MVS: REPLACEMENT FAILED =====
+[MVS] Selecting structure for biome #minecraft:is_plains
+[MVS] Candidates: 5 structures, total weight 50
+[MVS] Selected: minecraft:village_plains (weight 10)
 ```
 
-#### Empty Selection
+**Generation Result:**
 ```
-SELECTED: (empty - cancelling spawn)
-===== MVS: SPAWN CANCELLED (EMPTY) =====
+[MVS] Generation SUCCEEDED: minecraft:village_plains at chunk [12, -5]
 ```
-Weighted empty was selected, no village placed intentionally.
 
-### Using Debug Logs
+**Biome Frequency:**
+```
+[MVS] Biome frequency roll FAILED for #minecraft:is_ocean (0.30)
+```
 
-#### To diagnose "no villages"
-1. Search logs for `[MVS-DEBUG] Structure attempt:`
-2. If none → vanilla villages aren't spawning (check CTOV/BCA configs)
-3. If present → follow the log chain to see what happened
+**Failures:**
+```
+[MVS] Generation FAILED: minecraft:village_desert - biome mismatch
+```
 
-#### To diagnose "wrong biomes"
-1. Find village spawn in logs
-2. Check `Biome: X → Category: Y`
-3. If category wrong → use `biome_category_overrides`
+### Debug Commands
 
-#### To diagnose "no variety"
-1. Check `Selection Pool` logs
-2. Look at weights and percentages
-3. Adjust weights if one mod dominates
+With `debug_cmd: true`:
 
----
+```
+/mvs debug mod-scan      → Outputs to local/mvs/mod-scan-*.txt
+/mvs debug mod-weights   → Outputs to local/mvs/mod-weights-*.txt
+```
 
-## Nether/End Structures Not Affected
+## Getting Help
 
-### Symptom
-
-Nether fortresses, bastion remnants, end cities, or other non-overworld structures are still spawning normally and MVS doesn't seem to affect them.
-
-### This Is Expected Behavior
-
-**MVS only operates in the Overworld dimension.** Nether, End, and custom dimension structures are intentionally not intercepted.
-
-**Why?**
-- MVS is specifically designed for **village variety** in the Overworld
-- Supporting cross-dimension structure replacement would be a completely different feature
-- Different dimensions need different structure pools, biome logic, and handling
-- This would transform MVS from a focused tool into a general "Multi Structure Selector"
-
-**What this means:**
-- ✅ **Overworld villages** - Fully supported
-- ❌ **Nether structures** - Not intercepted (fortresses, bastions, etc.)
-- ❌ **End structures** - Not intercepted (cities, ships, etc.)
-- ❌ **Custom dimensions** - Not supported
-
-### Future Possibilities
-
-A generalized **Multi Structure Selector** mod may be developed in the future to handle cross-dimension structure pooling. For now, MVS stays focused on its core purpose: bringing village variety to the Overworld.
-
-See the README's [Scope & Limitations](../README.md#scope--limitations) section for more details.
-
----
-
-## Still Having Issues?
-
-If none of these solutions work:
+If you've tried everything:
 
 1. **Enable debug logging**
 2. **Create a new world**
-3. **Explore 1000+ blocks** from spawn
-4. **Copy last 200 lines of logs:**
+3. **Explore 1000+ blocks from spawn**
+4. **Save last 200 lines of logs:**
    ```bash
    tail -200 logs/latest.log > mvs-debug.txt
    ```
+
 5. **Open an issue:** [GitHub Issues](https://github.com/RhettL/multi-village-selector/issues)
-   - Include your config file
-   - Include the debug log output
-   - Describe what you expected vs what happened
-   - List which village mods you have installed
+
+Include:
+- Your config file
+- Debug log output
+- What you expected vs what happened
+- List of village mods installed
+- Platform (NeoForge or Fabric)
+
+### Pre-Issue Checklist
+
+- [ ] Debug logging enabled
+- [ ] Created NEW world (old chunks don't regenerate)
+- [ ] Explored beyond spawn zone (1000+ blocks)
+- [ ] CTOV village generation disabled (if using CTOV)
+- [ ] Better Village custom config disabled (if using Better Village)
+- [ ] Config syntax valid (no JSON errors in logs)
+- [ ] Minecraft restarted after config changes
+- [ ] Correct Minecraft version (1.21.1)
 
 ---
 
-## Quick Checklist
-
-Before opening an issue, verify:
-
-- ✅ Debug logging enabled
-- ✅ Created NEW world (not old world)
-- ✅ Explored beyond spawn zone (300+ blocks)
-- ✅ CTOV village generation disabled (if using CTOV)
-- ✅ BCA villages in `replace_of` (if using BCA)
-- ✅ Config syntax valid (no JSON errors)
-- ✅ Minecraft restarted after config changes
-- ✅ Mod installed in `mods/` folder
-- ✅ Using correct Minecraft version (1.21.1)
-
----
-
-**See also:**
-- [Configuration Guide](Configuration.md) - Complete config reference
-- [Mod Compatibility](ModCompatibility.md) - Per-mod setup instructions
+**See Also:**
+- [Configuration](Configuration.md) - Complete config reference
+- [Mod Compatibility](ModCompatibility.md) - Per-mod setup
+- [Commands](Commands.md) - In-game commands
+- [Spacing Guide](SpacingGuide.md) - Village density control

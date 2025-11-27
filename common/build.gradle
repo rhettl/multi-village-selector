@@ -1,0 +1,56 @@
+plugins {
+    id "dev.architectury.loom"
+}
+
+architectury {
+    common(rootProject.enabled_platforms.split(","))
+}
+
+loom {
+    silentMojangMappingsLicense()
+}
+
+dependencies {
+    minecraft "com.mojang:minecraft:${rootProject.minecraft_version}"
+    mappings loom.officialMojangMappings()
+
+    // Architectury API (common)
+    modImplementation "dev.architectury:architectury:${rootProject.architectury_version}"
+
+    // Mixin
+    compileOnly "org.spongepowered:mixin:0.8.5"
+    annotationProcessor "org.spongepowered:mixin:0.8.5:processor"
+
+    // JSON5 parser
+    implementation "de.marhali:json5-java:3.0.0"
+
+    // JUnit 5 for testing
+    testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.0"
+    testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.0"
+
+    // Mockito for mocking Minecraft classes in tests
+    testImplementation "org.mockito:mockito-core:5.11.0"
+    testImplementation "org.mockito:mockito-junit-jupiter:5.11.0"
+}
+
+test {
+    useJUnitPlatform()
+
+    // Ensure tests run in headless mode
+    systemProperty 'java.awt.headless', 'true'
+
+    // Provide more memory for tests
+    maxHeapSize = '2G'
+
+    // Show test output
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = false
+    }
+
+    // Fail fast in CI
+    if (System.getenv("CI") != null) {
+        failFast = true
+    }
+}
