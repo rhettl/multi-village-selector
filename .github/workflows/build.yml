@@ -2,9 +2,9 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ master, rc ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ master, rc ]
   workflow_dispatch:
 
 jobs:
@@ -36,17 +36,29 @@ jobs:
       if: always()
       with:
         name: test-results
-        path: build/test-results/test/*.xml
+        path: |
+          common/build/test-results/test/*.xml
+          neoforge/build/test-results/test/*.xml
+          fabric/build/test-results/test/*.xml
 
-    - name: Upload build artifacts
+    - name: Upload NeoForge JAR
       uses: actions/upload-artifact@v4
       with:
-        name: multivillageselector-jar
-        path: build/libs/*.jar
+        name: mvs-neoforge
+        path: neoforge/build/libs/*.jar
+
+    - name: Upload Fabric JAR
+      uses: actions/upload-artifact@v4
+      with:
+        name: mvs-fabric
+        path: fabric/build/libs/*.jar
 
     - name: Upload test report
       uses: actions/upload-artifact@v4
       if: failure()
       with:
         name: test-reports
-        path: build/reports/tests/test/
+        path: |
+          common/build/reports/tests/test/
+          neoforge/build/reports/tests/test/
+          fabric/build/reports/tests/test/

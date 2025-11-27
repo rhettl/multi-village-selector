@@ -27,7 +27,7 @@ jobs:
       - name: Run tests
         run: ./gradlew test
 
-      - name: Build JAR
+      - name: Build JARs
         run: ./gradlew build
 
       - name: Check if pre-release
@@ -47,7 +47,9 @@ jobs:
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          files: build/libs/*.jar
+          files: |
+            neoforge/build/libs/*.jar
+            fabric/build/libs/*.jar
           generate_release_notes: true
           prerelease: ${{ steps.check_version.outputs.prerelease }}
           draft: false
