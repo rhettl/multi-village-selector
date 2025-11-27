@@ -1,0 +1,2858 @@
+package com.rhett.multivillageselector;
+
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
+import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.context.CommandContext;
+import net.minecraft.ChatFormatting;
+import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.Commands;
+import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+/**
+ * Handles all /mvs commands for debugging and inspecting MVS configuration
+ */
+public class MVSCommands {
+
+    private static final Gson GSON = new Gson();
+    private static final String MINECRAFT_VILLAGES_SET = "minecraft:villages";
+    private static final int TARGET_AVERAGE_WEIGHT = 25;
+    private static final int VANILLA_SPACING = 34;
+
+    /**
+     * Register all MVS commands
+     */
+    public static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
+        var mvsCommand = Commands.literal("mvs")
+            .requires(source -> {
+                // Allow in single-player or if OP level 2+
+                return !source.getServer().isDedicatedServer() || source.hasPermission(2);
+            })
+            .executes(MVSCommands::executeHelpCommand) // No args: show help
+            .then(Commands.literal("help")
+                .executes(MVSCommands::executeHelpCommand)
+            )
+            // v0.3.0 TODO: Rewrite these commands for tag-based system
+            /* .then(Commands.literal("biome")
+                .executes(MVSCommands::executeCurrentBiomeCommand) // No args: show current biome
+                .then(Commands.literal("list")
+                    .executes(MVSCommands::executeBiomesDumpCommand) // list: dump all biomes
+                )
+                .then(Commands.argument("biome_id", StringArgumentType.greedyString())
+                    .executes(MVSCommands::executeBiomeLookupCommand) // <id>: lookup specific biome
+                )
+            )
+            .then(Commands.literal("pools")
+                .executes(MVSCommands::executePoolsCommand)
+                .then(Commands.argument("category", StringArgumentType.word())
+                    .executes(MVSCommands::executePoolsCategoryCommand)
+                )
+            ) */
+            .then(Commands.literal("generate")
+                .executes(MVSCommands::executeGenerateCommand) // Generate smart config
+            );
+
+        // Conditionally add debug commands if debug_cmd is enabled
+        if (MVSConfig.debugCmd) {
+            mvsCommand = mvsCommand.then(Commands.literal("debug")
+                .executes(MVSCommands::executeDebugHelpCommand) // Show debug command help
+                .then(Commands.literal("mod-weights")
+                    .executes(MVSCommands::executeModWeightsCommand) // Show all structure weights
+                    .then(Commands.argument("filter", StringArgumentType.greedyString())
+                        .executes(MVSCommands::executeModWeightsFilterCommand) // Show filtered structure weights
+                    )
+                )
+                .then(Commands.literal("mod-scan")
+                    .executes(MVSCommands::executeModScanCommand) // Scan mods for village structures
+                )
+            );
+        }
+
+        dispatcher.register(mvsCommand);
+    }
+
+    /**
+     * Handle /mvs help command (or /mvs with no arguments)
+     * Shows an overview of all available commands
+     */
+    private static int executeHelpCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        source.sendSuccess(() -> Component.literal("=== Multi Village Selector Commands ===")
+            .withStyle(ChatFormatting.GOLD), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        // /mvs biome
+        source.sendSuccess(() -> Component.literal("/mvs biome")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show your current biome, location, and category")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs biome <id>
+        source.sendSuccess(() -> Component.literal("/mvs biome <biome_id>")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Look up category for a specific biome")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("  Example: ")
+            .withStyle(ChatFormatting.DARK_GRAY)
+            .append(Component.literal("/mvs biome minecraft:plains")
+                .withStyle(ChatFormatting.DARK_GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        // /mvs biome list
+        source.sendSuccess(() -> Component.literal("/mvs biome list")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Dump all registered biomes to file")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        // /mvs pools
+        source.sendSuccess(() -> Component.literal("/mvs pools")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - List all configured pool categories")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs pools <category>
+        source.sendSuccess(() -> Component.literal("/mvs pools <category>")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show structures in a pool with weights")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("  Example: ")
+            .withStyle(ChatFormatting.DARK_GRAY)
+            .append(Component.literal("/mvs pools plains")
+                .withStyle(ChatFormatting.DARK_GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        // /mvs generate
+        source.sendSuccess(() -> Component.literal("/mvs generate")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Generate smart config from installed mods")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        // /mvs help
+        source.sendSuccess(() -> Component.literal("/mvs help")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show this help message")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+        source.sendSuccess(() -> Component.literal("All commands require OP permission level 2")
+            .withStyle(ChatFormatting.YELLOW), false);
+
+        return 1;
+    }
+
+    /**
+     * Handle /mvs biome command (no arguments)
+     * Shows the player's current biome, location, temperature, and category
+     */
+    private static int executeCurrentBiomeCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            // Get player's position and biome
+            net.minecraft.world.entity.Entity entity = source.getEntity();
+            if (entity == null) {
+                source.sendFailure(Component.literal("This command can only be used by a player"));
+                return 0;
+            }
+
+            net.minecraft.core.BlockPos pos = entity.blockPosition();
+            net.minecraft.server.level.ServerLevel level = source.getLevel();
+
+            // Get biome at player's location
+            net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> biomeHolder =
+                level.getBiome(pos);
+
+            net.minecraft.resources.ResourceLocation biomeLocation = biomeHolder.unwrapKey()
+                .map(net.minecraft.resources.ResourceKey::location)
+                .orElse(null);
+
+            if (biomeLocation == null) {
+                source.sendFailure(Component.literal("Unable to determine biome"));
+                return 0;
+            }
+
+            String biomeId = biomeLocation.toString();
+            net.minecraft.world.level.biome.Biome biome = biomeHolder.value();
+
+            // Get temperature and category
+            float temperature = biome.getBaseTemperature();
+
+            // Check if there's a config override
+            boolean isOverride = MVSConfig.biomeCategoryOverrides.containsKey(biomeId);
+            final String category;
+            if (isOverride) {
+                category = MVSConfig.biomeCategoryOverrides.get(biomeId);
+            } else {
+                category = getSimpleBiomeCategory(biomeId);
+            }
+
+            // Send formatted output
+            source.sendSuccess(() -> Component.literal("=== Current Biome ===")
+                .withStyle(ChatFormatting.GOLD), false);
+
+            source.sendSuccess(() -> Component.literal("Location: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.format("X: %d, Y: %d, Z: %d", pos.getX(), pos.getY(), pos.getZ()))
+                    .withStyle(ChatFormatting.WHITE)), false);
+
+            source.sendSuccess(() -> Component.literal("Biome: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(biomeId).withStyle(ChatFormatting.AQUA)), false);
+
+            source.sendSuccess(() -> Component.literal("Temperature: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.format("%.2f", temperature))
+                    .withStyle(ChatFormatting.YELLOW)), false);
+
+            source.sendSuccess(() -> Component.literal("Category: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(category).withStyle(ChatFormatting.YELLOW)), false);
+
+            if (isOverride) {
+                source.sendSuccess(() -> Component.literal("Source: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal("Config Override").withStyle(ChatFormatting.LIGHT_PURPLE)), false);
+            }
+
+            // Show available structures for this category
+            if (MVSConfig.biomeReplacements.containsKey(category)) {
+                List<MVSConfig.WeightedStructure> structures = MVSConfig.biomeReplacements.get(category);
+                source.sendSuccess(() -> Component.literal("Available Structures: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(structures.size())).withStyle(ChatFormatting.GREEN)), false);
+            } else {
+                source.sendSuccess(() -> Component.literal("Available Structures: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal("None (would use DEFAULT)").withStyle(ChatFormatting.RED)), false);
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            MultiVillageSelector.LOGGER.error("Error in /mvs biome command", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Handle /mvs biome <mod:biome> command (with argument)
+     * Shows which category a specific biome maps to
+     */
+    private static int executeBiomeLookupCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String biomeId = StringArgumentType.getString(context, "biome_id");
+
+        try {
+            // Validate format
+            if (!biomeId.contains(":")) {
+                source.sendFailure(Component.literal("Invalid biome format. Use 'namespace:biome' (e.g., 'minecraft:plains')"));
+                return 0;
+            }
+
+            // Check if there's a config override
+            String category;
+            boolean isOverride = false;
+
+            if (MVSConfig.biomeCategoryOverrides.containsKey(biomeId)) {
+                category = MVSConfig.biomeCategoryOverrides.get(biomeId);
+                isOverride = true;
+            } else {
+                // Use the categorization logic from the mixin
+                // For now, we'll do simple name matching (can't instantiate Biome here)
+                category = getSimpleBiomeCategory(biomeId);
+            }
+
+            // Send result
+            source.sendSuccess(() -> Component.literal("=== MVS Biome Info ===")
+                .withStyle(ChatFormatting.GOLD), false);
+
+            source.sendSuccess(() -> Component.literal("Biome: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(biomeId).withStyle(ChatFormatting.WHITE)), false);
+
+            source.sendSuccess(() -> Component.literal("Category: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(category).withStyle(ChatFormatting.YELLOW)), false);
+
+            if (isOverride) {
+                source.sendSuccess(() -> Component.literal("Source: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal("Config Override").withStyle(ChatFormatting.LIGHT_PURPLE)), false);
+            } else {
+                source.sendSuccess(() -> Component.literal("Source: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal("Name Matching / Temperature").withStyle(ChatFormatting.AQUA)), false);
+            }
+
+            // Show available structures in this category
+            if (MVSConfig.biomeReplacements.containsKey(category)) {
+                List<MVSConfig.WeightedStructure> structures = MVSConfig.biomeReplacements.get(category);
+                source.sendSuccess(() -> Component.literal("Available Structures: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(String.valueOf(structures.size())).withStyle(ChatFormatting.GREEN)), false);
+            } else {
+                source.sendSuccess(() -> Component.literal("Available Structures: ")
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal("None (would use DEFAULT)").withStyle(ChatFormatting.RED)), false);
+            }
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            return 0;
+        }
+    }
+
+    /**
+     * Handle /mvs biome list command
+     * Lists all registered biomes grouped by category in chat
+     */
+    private static int executeBiomesDumpCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            source.sendSuccess(() -> Component.literal("=== All Biomes by Category ===")
+                .withStyle(ChatFormatting.GOLD), false);
+
+            // Get biome registry
+            net.minecraft.server.level.ServerLevel level = source.getLevel();
+            net.minecraft.core.Registry<net.minecraft.world.level.biome.Biome> biomeRegistry =
+                level.registryAccess().registryOrThrow(net.minecraft.core.registries.Registries.BIOME);
+
+            // Group biomes by category
+            java.util.Map<String, java.util.List<String>> biomesByCategory = new java.util.TreeMap<>();
+            java.util.List<String> uncategorized = new java.util.ArrayList<>();
+
+            // Iterate through all registered biomes
+            for (net.minecraft.resources.ResourceKey<net.minecraft.world.level.biome.Biome> key : biomeRegistry.registryKeySet()) {
+                net.minecraft.resources.ResourceLocation biomeLocation = key.location();
+                String biomeId = biomeLocation.toString();
+
+                // Get biome
+                net.minecraft.world.level.biome.Biome biome = biomeRegistry.get(key);
+                if (biome == null) continue;
+
+                // Determine category and whether it was explicitly matched
+                boolean isOverride = MVSConfig.biomeCategoryOverrides.containsKey(biomeId);
+                String category;
+                boolean hasExplicitMatch = false;
+
+                if (isOverride) {
+                    category = MVSConfig.biomeCategoryOverrides.get(biomeId);
+                    hasExplicitMatch = true;
+                } else {
+                    // Check if name matches (not just temperature fallback)
+                    String path = biomeLocation.getPath().toLowerCase();
+                    if (path.contains("jungle") || path.contains("tropical") || path.contains("mayan") ||
+                        path.contains("swamp") || path.contains("marsh") || path.contains("bog") ||
+                        path.contains("bayou") || path.contains("wetland") || path.contains("mangrove") ||
+                        path.contains("mushroom") || path.contains("mystic_grove") ||
+                        path.contains("dark_forest") || path.contains("dead_forest") || path.contains("ominous") ||
+                        path.contains("beach") || path.contains("shore") ||
+                        path.contains("desert") || path.contains("dune") || path.contains("sand") ||
+                        path.contains("badlands") || path.contains("mesa") || path.contains("outback") ||
+                        path.contains("savanna") || path.contains("shrubland") || path.contains("prairie") ||
+                        path.contains("steppe") || path.contains("arid") ||
+                        path.contains("snow") || path.contains("ice") || path.contains("frozen") ||
+                        path.contains("arctic") || path.contains("tundra") || path.contains("glacier") ||
+                        path.contains("grove") || path.contains("peaks") ||
+                        path.contains("taiga") || path.contains("pine") || path.contains("spruce") ||
+                        path.contains("boreal") || path.contains("conifer") ||
+                        path.contains("ocean") || path.contains("sea") || path.contains("river") ||
+                        path.contains("lake") ||
+                        path.contains("cave") || path.contains("deep_dark") || path.contains("dripstone") ||
+                        path.contains("lush_cave") ||
+                        path.contains("plains") || path.contains("meadow") || path.contains("grassland") ||
+                        path.contains("field") || path.contains("pasture") || path.contains("forest")) {
+                        hasExplicitMatch = true;
+                    }
+
+                    category = getSimpleBiomeCategory(biomeId);
+                }
+
+                // Add to appropriate list
+                if (hasExplicitMatch) {
+                    biomesByCategory.computeIfAbsent(category, k -> new java.util.ArrayList<>()).add(biomeId);
+                } else {
+                    uncategorized.add(biomeId);
+                }
+            }
+
+            source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+            // Output each category with its biomes
+            for (Map.Entry<String, java.util.List<String>> entry : biomesByCategory.entrySet()) {
+                final String category = entry.getKey();
+                final int count = entry.getValue().size();
+
+                // Category header
+                source.sendSuccess(() -> Component.literal(category.toUpperCase())
+                    .withStyle(ChatFormatting.YELLOW)
+                    .append(Component.literal(" (" + count + ")")
+                        .withStyle(ChatFormatting.GRAY)), false);
+
+                // List biomes
+                for (String biomeId : entry.getValue()) {
+                    source.sendSuccess(() -> Component.literal("  " + biomeId)
+                        .withStyle(ChatFormatting.WHITE), false);
+                }
+
+                source.sendSuccess(() -> Component.literal(""), false); // Blank line
+            }
+
+            // Output uncategorized biomes if any
+            if (!uncategorized.isEmpty()) {
+                final int uncatCount = uncategorized.size();
+                source.sendSuccess(() -> Component.literal("UNCATEGORIZED")
+                    .withStyle(ChatFormatting.RED)
+                    .append(Component.literal(" (" + uncatCount + ") - uses temperature fallback → DEFAULT")
+                        .withStyle(ChatFormatting.GRAY)), false);
+
+                for (String biomeId : uncategorized) {
+                    source.sendSuccess(() -> Component.literal("  " + biomeId)
+                        .withStyle(ChatFormatting.DARK_GRAY), false);
+                }
+
+                source.sendSuccess(() -> Component.literal(""), false); // Blank line
+            }
+
+            // Summary
+            final int totalBiomes = biomesByCategory.values().stream().mapToInt(List::size).sum() + uncategorized.size();
+            final int totalCategories = biomesByCategory.size();
+
+            source.sendSuccess(() -> Component.literal("Total: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(totalBiomes) + " biomes")
+                    .withStyle(ChatFormatting.GREEN))
+                .append(Component.literal(", ")
+                    .withStyle(ChatFormatting.GRAY))
+                .append(Component.literal(String.valueOf(totalCategories) + " categories")
+                    .withStyle(ChatFormatting.YELLOW)), false);
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error listing biomes: " + e.getMessage()));
+            MultiVillageSelector.LOGGER.error("Error listing biomes", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Handle /mvs pools command
+     * Lists all configured pool categories
+     */
+    private static int executePoolsCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        if (MVSConfig.biomeReplacements.isEmpty()) {
+            source.sendFailure(Component.literal("No pools configured"));
+            return 0;
+        }
+
+        source.sendSuccess(() -> Component.literal("=== MVS Pool Categories ===")
+            .withStyle(ChatFormatting.GOLD), false);
+
+        source.sendSuccess(() -> Component.literal("Total Categories: ")
+            .withStyle(ChatFormatting.GRAY)
+            .append(Component.literal(String.valueOf(MVSConfig.biomeReplacements.size()))
+                .withStyle(ChatFormatting.GREEN)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        for (Map.Entry<String, List<MVSConfig.WeightedStructure>> entry : MVSConfig.biomeReplacements.entrySet()) {
+            String category = entry.getKey();
+            int count = entry.getValue().size();
+
+            source.sendSuccess(() -> Component.literal("  • ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(category).withStyle(ChatFormatting.YELLOW))
+                .append(Component.literal(" (" + count + " structures)").withStyle(ChatFormatting.GRAY)), false);
+        }
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+        source.sendSuccess(() -> Component.literal("Use ")
+            .withStyle(ChatFormatting.GRAY)
+            .append(Component.literal("/mvs pools <category>").withStyle(ChatFormatting.AQUA))
+            .append(Component.literal(" to see details").withStyle(ChatFormatting.GRAY)), false);
+
+        return 1;
+    }
+
+    /**
+     * Handle /mvs pools <category> command
+     * Shows all structures in a specific pool with weights and percentages
+     */
+    private static int executePoolsCategoryCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+        String category = StringArgumentType.getString(context, "category");
+
+        if (!MVSConfig.biomeReplacements.containsKey(category)) {
+            source.sendFailure(Component.literal("Unknown category: " + category));
+            source.sendSystemMessage(Component.literal("Available categories: " +
+                String.join(", ", MVSConfig.biomeReplacements.keySet())).withStyle(ChatFormatting.GRAY));
+            return 0;
+        }
+
+        List<MVSConfig.WeightedStructure> structures = MVSConfig.biomeReplacements.get(category);
+        int totalWeight = structures.stream().mapToInt(s -> s.weight).sum();
+
+        source.sendSuccess(() -> Component.literal("=== MVS Pool: ")
+            .withStyle(ChatFormatting.GOLD)
+            .append(Component.literal(category).withStyle(ChatFormatting.YELLOW))
+            .append(Component.literal(" ===").withStyle(ChatFormatting.GOLD)), false);
+
+        source.sendSuccess(() -> Component.literal("Total Weight: ")
+            .withStyle(ChatFormatting.GRAY)
+            .append(Component.literal(String.valueOf(totalWeight)).withStyle(ChatFormatting.GREEN)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        // List each structure with weight and percentage
+        for (MVSConfig.WeightedStructure ws : structures) {
+            double percentage = (ws.weight / (double) totalWeight) * 100.0;
+
+            if (ws.isEmpty) {
+                // Empty entry (weighted no-spawn)
+                source.sendSuccess(() -> Component.literal(String.format("  [%d] ", ws.weight))
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(String.format("(%.1f%%) ", percentage))
+                        .withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal("(empty - no spawn)")
+                        .withStyle(ChatFormatting.DARK_RED)), false);
+            } else {
+                // Regular structure entry
+                String structurePath = ws.structure.getPath();
+                String structureNamespace = ws.structure.getNamespace();
+
+                source.sendSuccess(() -> Component.literal(String.format("  [%d] ", ws.weight))
+                    .withStyle(ChatFormatting.DARK_GRAY)
+                    .append(Component.literal(String.format("(%.1f%%) ", percentage))
+                        .withStyle(ChatFormatting.GRAY))
+                    .append(Component.literal(structureNamespace + ":")
+                        .withStyle(ChatFormatting.AQUA))
+                    .append(Component.literal(structurePath)
+                        .withStyle(ChatFormatting.WHITE)), false);
+            }
+        }
+
+        return 1;
+    }
+
+    /**
+     * Simple biome categorization based on name only (for command usage)
+     * This mirrors the logic in ChunkGeneratorMixin but without access to Biome instance
+     */
+    private static String getSimpleBiomeCategory(String biomeId) {
+        String path = biomeId.toLowerCase();
+
+        // Check overrides first
+        if (MVSConfig.biomeCategoryOverrides.containsKey(biomeId)) {
+            return MVSConfig.biomeCategoryOverrides.get(biomeId);
+        }
+
+        // Name matching (same order as mixin)
+        if (path.contains("jungle") || path.contains("tropical") || path.contains("mayan")) {
+            return "jungle";
+        }
+        if (path.contains("swamp") || path.contains("marsh") || path.contains("bog") ||
+            path.contains("bayou") || path.contains("wetland") || path.contains("mangrove")) {
+            return "swamp";
+        }
+        if (path.contains("mushroom") || path.contains("mystic_grove")) {
+            return "mushroom";
+        }
+        if (path.contains("dark_forest") || path.contains("dead_forest") || path.contains("ominous")) {
+            return "dark_forest";
+        }
+        if (path.contains("beach") || path.contains("shore")) {
+            return "beach";
+        }
+        if (path.contains("desert") || path.contains("dune") || path.contains("sand") ||
+            path.contains("badlands") || path.contains("mesa") || path.contains("outback")) {
+            return "desert";
+        }
+        if (path.contains("savanna") || path.contains("shrubland") || path.contains("prairie") ||
+            path.contains("steppe") || path.contains("arid")) {
+            return "savanna";
+        }
+        if (path.contains("snow") || path.contains("ice") || path.contains("frozen") ||
+            path.contains("arctic") || path.contains("tundra") || path.contains("glacier") ||
+            path.contains("grove") || path.contains("peaks")) {
+            return "snowy";
+        }
+        if (path.contains("taiga") || path.contains("pine") || path.contains("spruce") ||
+            path.contains("boreal") || path.contains("conifer")) {
+            return "taiga";
+        }
+        if (path.contains("ocean") || path.contains("sea") || path.contains("river") ||
+            path.contains("lake")) {
+            return "ocean";
+        }
+        if (path.contains("cave") || path.contains("deep_dark") || path.contains("dripstone") ||
+            path.contains("lush_cave")) {
+            return "cave";
+        }
+        if (path.contains("plains") || path.contains("meadow") || path.contains("grassland") ||
+            path.contains("field") || path.contains("pasture") || path.contains("forest")) {
+            return "plains";
+        }
+
+        // Default to plains (can't check temperature without Biome instance)
+        return "plains";
+    }
+
+    /**
+     * Handle /mvs generate command
+     * Generates a smart config file based on installed mods and structures
+     */
+    private static int executeGenerateCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            source.sendSuccess(() -> Component.literal("=== Generating Smart Config ===")
+                .withStyle(ChatFormatting.GOLD), false);
+
+            // ===========================================
+            // UNIFIED DATA COLLECTION (using unified scan)
+            // ===========================================
+            ScanResult scan = scanAllStructures(source.getServer());
+
+            // ===========================================
+            // GENERATE CONFIG
+            // ===========================================
+            java.util.List<String> lines = generateV3ConfigLines(source.getServer(), scan);
+
+            // Write to file (create directory if needed)
+            java.nio.file.Path outputDir = java.nio.file.Paths.get("local/mvs");
+            java.nio.file.Files.createDirectories(outputDir);
+            final java.nio.file.Path outputFile = outputDir.resolve("multivillageselector.json5");
+            java.nio.file.Files.write(outputFile, lines, java.nio.charset.StandardCharsets.UTF_8);
+
+            // Send success
+            final int modsDetected = scan.allStructures.values().stream()
+                .map(s -> s.modId)
+                .collect(java.util.stream.Collectors.toSet())
+                .size();
+            final int villagesDetected = scan.allStructures.size();
+            final int structureSetsDetected = scan.structureSetInfo.size();
+
+            source.sendSuccess(() -> Component.literal("Mods detected: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(modsDetected)).withStyle(ChatFormatting.GREEN)), false);
+
+            source.sendSuccess(() -> Component.literal("Villages found: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(villagesDetected)).withStyle(ChatFormatting.GREEN)), false);
+
+            source.sendSuccess(() -> Component.literal("Structure sets: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(structureSetsDetected)).withStyle(ChatFormatting.YELLOW)), false);
+
+            source.sendSuccess(() -> Component.literal("File: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("local/mvs/multivillageselector.json5")
+                    .withStyle(ChatFormatting.AQUA)
+                    .withStyle(style -> style.withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                        net.minecraft.network.chat.ClickEvent.Action.OPEN_FILE,
+                        outputFile.toAbsolutePath().toString())))), false);
+
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Next steps instructions
+            source.sendSuccess(() -> Component.literal("💡 What to do next:")
+                .withStyle(ChatFormatting.GOLD), false);
+            source.sendSuccess(() -> Component.literal("  1. Click the file link above to review the config")
+                .withStyle(ChatFormatting.GRAY), false);
+            source.sendSuccess(() -> Component.literal("  2. Adjust village weights if desired (higher = more common)")
+                .withStyle(ChatFormatting.GRAY), false);
+            source.sendSuccess(() -> Component.literal("  3. Copy file to: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("config/multivillageselector.json5").withStyle(ChatFormatting.AQUA)), false);
+            source.sendSuccess(() -> Component.literal("  4. Restart Minecraft")
+                .withStyle(ChatFormatting.GRAY), false);
+
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Documentation link
+            source.sendSuccess(() -> Component.literal("📖 Need help? See: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal("Configuration Guide")
+                    .withStyle(ChatFormatting.AQUA)
+                    .withStyle(style -> style
+                        .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                            net.minecraft.network.chat.ClickEvent.Action.OPEN_URL,
+                            "https://github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md"))
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                            net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                            Component.literal("Click to open in browser"))))), false);
+
+            MultiVillageSelector.LOGGER.info("Generated config with {} mods, {} villages", modsDetected, villagesDetected);
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error generating config: " + e.getMessage()));
+            MultiVillageSelector.LOGGER.error("Error generating config", e);
+            return 0;
+        }
+    }
+
+    private static String categorizeVillageByName(String path) {
+        if (path.contains("jungle")) return "jungle";
+        if (path.contains("swamp")) return "swamp";
+        if (path.contains("mushroom")) return "mushroom";
+        if (path.contains("dark")) return "dark_forest";
+        if (path.contains("beach")) return "beach";
+        if (path.contains("desert") || path.contains("badlands") || path.contains("mesa")) return "desert";
+        if (path.contains("savanna")) return "savanna";
+        if (path.contains("snow") || path.contains("ice") || path.contains("frozen")) return "snowy";
+        if (path.contains("taiga")) return "taiga";
+        if (path.contains("ocean")) return "ocean";
+        if (path.contains("cave") || path.contains("underground")) return "cave";
+        return "plains"; // Default
+    }
+
+    private static boolean hasExplicitBiomeMatch(String path) {
+        return path.contains("jungle") || path.contains("tropical") || path.contains("swamp") ||
+               path.contains("marsh") || path.contains("mushroom") || path.contains("dark") ||
+               path.contains("beach") || path.contains("shore") || path.contains("desert") ||
+               path.contains("dune") || path.contains("sand") || path.contains("badlands") ||
+               path.contains("mesa") || path.contains("savanna") || path.contains("shrubland") ||
+               path.contains("snow") || path.contains("ice") || path.contains("frozen") || path.contains("peaks") ||
+               path.contains("taiga") || path.contains("pine") || path.contains("spruce") ||
+               path.contains("ocean") || path.contains("sea") || path.contains("river") ||
+               path.contains("cave") || path.contains("deep_dark") || path.contains("dripstone") || path.contains("lush_cave") ||
+               path.contains("plains") || path.contains("meadow") || path.contains("grassland") ||
+               path.contains("forest");
+    }
+
+    /**
+     * Generate v0.3.0 config with structure_pool and normalized weights
+     */
+    private static java.util.List<String> generateV3ConfigLines(
+            net.minecraft.server.MinecraftServer server,
+            ScanResult scan) {
+
+        java.util.List<String> lines = new java.util.ArrayList<>();
+
+        // Header
+        lines.add("// ===========================================");
+        lines.add("//  Multi Village Selector - Generated Config (v0.3.0)");
+        lines.add("//  Generated: " + java.time.LocalDateTime.now());
+        lines.add("// ===========================================");
+        lines.add("//");
+        lines.add("// This config uses NORMALIZED WEIGHTS based on mod-intended spawn rates.");
+        lines.add("// Weights have been adjusted to:");
+        lines.add("//   1. Equalize representation across mods");
+        lines.add("//   2. Preserve internal mod ratios (small:medium:large)");
+        lines.add("//   3. Account for structure spacing (rarer structures = higher weights)");
+        lines.add("//");
+        lines.add("// Target average weight: 25 per structure");
+        lines.add("// Empty weights: Recommended at 50% of pool total for vanilla-like density");
+        lines.add("//");
+        lines.add("// ═══════════════════════════════════════════════════════════════");
+        lines.add("//  📋 NEXT STEPS:");
+        lines.add("//  1. Review weights below (higher = spawns more often)");
+        lines.add("//  2. Adjust empty weights to control village density");
+        lines.add("//  3. Copy to: config/multivillageselector.json5");
+        lines.add("//  4. Restart Minecraft");
+        lines.add("// ═══════════════════════════════════════════════════════════════");
+        lines.add("");
+        lines.add("{");
+        lines.add("  enabled: true,");
+        lines.add("  debug_logging: false,");
+        lines.add("");
+
+        // Group structures by mod + structure_set
+        Map<String, List<StructureInfo>> structuresBySet = new TreeMap<>();
+        for (StructureInfo info : scan.allStructures.values()) {
+            String setId = info.getFinalSet();
+            if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                structuresBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+            }
+        }
+
+        // Calculate normalized weights per structure_set using shared helper
+        Map<String, Map<Integer, Integer>> normalizedWeightsBySet = new HashMap<>();
+        for (Map.Entry<String, List<StructureInfo>> entry : structuresBySet.entrySet()) {
+            String setId = entry.getKey();
+            List<StructureInfo> setStructures = entry.getValue();
+            StructureSetInfo setInfo = scan.structureSetInfo.get(setId);
+
+            Map<Integer, Integer> normalizedWeights = calculateNormalizedWeights(setStructures, setInfo);
+            if (!normalizedWeights.isEmpty()) {
+                normalizedWeightsBySet.put(setId, normalizedWeights);
+            }
+        }
+
+        // intercept_structure_sets section
+        lines.add("  // Structure sets to intercept (MVS takes control)");
+        lines.add("  intercept_structure_sets: [");
+        lines.add("    \"" + MINECRAFT_VILLAGES_SET + "\",");
+
+        // Add other *:villages structure_sets
+        for (String setId : structuresBySet.keySet()) {
+            if (!setId.equals(MINECRAFT_VILLAGES_SET) && setId.endsWith(":villages")) {
+                lines.add("    \"" + setId + "\",");
+            }
+        }
+
+        // Remove trailing comma
+        if (!lines.isEmpty() && lines.get(lines.size() - 1).endsWith(",")) {
+            String last = lines.remove(lines.size() - 1);
+            lines.add(last.substring(0, last.length() - 1));
+        }
+
+        lines.add("  ],");
+        lines.add("");
+
+        // structure_pool section
+        lines.add("  // Flat structure pool with normalized weights");
+        lines.add("  // Format: { structure: \"mod:structure_id\", weight: X }");
+        lines.add("  structure_pool: [");
+        lines.add("");
+
+        // Output structures grouped by mod
+        Map<String, List<StructureInfo>> structuresByMod = new TreeMap<>();
+        for (StructureInfo info : scan.allStructures.values()) {
+            String setId = info.getFinalSet();
+            if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                structuresByMod.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
+            }
+        }
+
+        for (Map.Entry<String, List<StructureInfo>> modEntry : structuresByMod.entrySet()) {
+            String modId = modEntry.getKey();
+            List<StructureInfo> modStructures = modEntry.getValue();
+
+            lines.add("    // === " + modId.toUpperCase() + " ===");
+            lines.add("");
+
+            // Group by structure_set within mod
+            Map<String, List<StructureInfo>> modStructuresBySet = new TreeMap<>();
+            for (StructureInfo info : modStructures) {
+                String setId = info.getFinalSet();
+                modStructuresBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+            }
+
+            for (Map.Entry<String, List<StructureInfo>> setEntry : modStructuresBySet.entrySet()) {
+                String setId = setEntry.getKey();
+                List<StructureInfo> setStructures = setEntry.getValue();
+                setStructures.sort(Comparator.comparing(s -> s.id));
+
+                Map<Integer, Integer> normWeights = normalizedWeightsBySet.get(setId);
+                if (normWeights == null) continue;
+
+                lines.add("    // " + setId);
+
+                // Output each structure
+                for (StructureInfo info : setStructures) {
+                    Integer originalWeight = info.getFinalWeight();
+                    if (originalWeight == null) continue;
+
+                    Integer normalizedWeight = normWeights.get(originalWeight);
+                    if (normalizedWeight == null) continue;
+
+                    lines.add(String.format("    { structure: \"%s\", weight: %d },", info.id, normalizedWeight));
+                }
+
+                lines.add("");
+            }
+        }
+
+        // === ADD FYI STRUCTURES (LIKELY + QUESTIONABLE) ===
+        // Use structures from unified scan (already categorized)
+
+        // Group likely structures by structure_set
+        Map<String, List<StructureInfo>> likelyBySet = new TreeMap<>();
+        for (StructureInfo info : scan.likelyStructures) {
+            String setId = info.getFinalSet();
+            if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                likelyBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+            }
+        }
+
+        // Group questionable structures by structure_set
+        Map<String, List<StructureInfo>> questionableBySet = new TreeMap<>();
+        for (StructureInfo info : scan.questionableStructures) {
+            String setId = info.getFinalSet();
+            if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                questionableBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+            }
+        }
+
+        // Add LIKELY structures (uncommented)
+        if (!likelyBySet.isEmpty()) {
+            lines.add("    // === LIKELY VILLAGE MODS (review and disable if incorrect) ===");
+            lines.add("    // These appear to be villages - ENABLED by default.");
+            lines.add("    // Comment out any that aren't actually villages.");
+            lines.add("");
+
+            for (Map.Entry<String, List<StructureInfo>> setEntry : likelyBySet.entrySet()) {
+                String setId = setEntry.getKey();
+                List<StructureInfo> setStructures = setEntry.getValue();
+
+                lines.add("    // " + setId + " (" + setStructures.size() + " structure(s))");
+
+                // Calculate normalized weights for these structures
+                for (StructureInfo info : setStructures) {
+                    Integer weight = info.getFinalWeight();
+                    if (weight == null) weight = 25; // Default if no weight found
+
+                    // Apply normalization based on structure_set info
+                    StructureSetInfo setInfo = scan.structureSetInfo.get(setId);
+                    if (setInfo != null && setInfo.spacing != null && setInfo.spacing > 0) {
+                        double rarityFactor = Math.pow(setInfo.spacing / (double) VANILLA_SPACING, 2);
+                        weight = (int) Math.ceil(weight / rarityFactor);
+                    }
+
+                    lines.add(String.format("    { structure: \"%s\", weight: %d },", info.id, weight));
+                }
+
+                lines.add("");
+            }
+        }
+
+        // Add QUESTIONABLE structures (commented out)
+        if (!questionableBySet.isEmpty()) {
+            lines.add("    // === UNCERTAIN STRUCTURES (verify before enabling) ===");
+            lines.add("    // These may or may not be villages. Uncomment only if verified.");
+            lines.add("");
+
+            for (Map.Entry<String, List<StructureInfo>> setEntry : questionableBySet.entrySet()) {
+                String setId = setEntry.getKey();
+                List<StructureInfo> setStructures = setEntry.getValue();
+
+                lines.add("    // " + setId + " (" + setStructures.size() + " structure(s))");
+
+                for (StructureInfo info : setStructures) {
+                    Integer weight = info.getFinalWeight();
+                    if (weight == null) weight = 25;
+                    lines.add(String.format("    // { structure: \"%s\", weight: %d },", info.id, weight));
+                }
+
+                lines.add("");
+            }
+        }
+
+        // Empty weights section (all structures keep their commas)
+        lines.add("    // === EMPTY WEIGHTS (no village spawns) ===");
+        lines.add("    //");
+        lines.add("    // Recommended: pool_total / 2 for vanilla-like 67% spawn rate");
+        lines.add("    // Adjust higher for sparser villages, lower for denser");
+        lines.add("    //");
+
+        // Calculate total pool weight
+        int totalPoolWeight = 0;
+        for (StructureInfo info : scan.allStructures.values()) {
+            String setId = info.getFinalSet();
+            if (setId == null || setId.equals("NONE (uncategorized)")) continue;
+
+            Integer originalWeight = info.getFinalWeight();
+            if (originalWeight == null) continue;
+
+            Map<Integer, Integer> normWeights = normalizedWeightsBySet.get(setId);
+            if (normWeights != null) {
+                Integer normalized = normWeights.get(originalWeight);
+                if (normalized != null) {
+                    totalPoolWeight += normalized;
+                }
+            }
+        }
+
+        int recommendedEmpty = totalPoolWeight / 2;
+        lines.add("    // Total pool weight: " + totalPoolWeight);
+        lines.add("    // Recommended empty: " + recommendedEmpty + " (for 67% spawn rate)");
+        lines.add("");
+        lines.add("    { empty: true, weight: " + recommendedEmpty + " }");
+
+        lines.add("  ],");
+        lines.add("");
+        lines.add("  structure_selection_strategy: \"mvs\",  // \"mvs\" (filter-first) or \"vanilla\" (retry)");
+        lines.add("}");
+
+        return lines;
+    }
+
+    private static java.util.List<String> generateConfigLines(
+            java.util.Map<String, java.util.List<String>> villagesByMod,
+            java.util.Map<String, java.util.List<String>> villagesByCategory,
+            java.util.List<String> uncategorizedBiomes,
+            boolean hasBCA, boolean hasCTOV, boolean hasTownsAndTowers, boolean hasTerralith) {
+
+        java.util.List<String> lines = new java.util.ArrayList<>();
+
+        // Header
+        lines.add("// ===========================================");
+        lines.add("//  Multi Village Selector - Generated Config");
+        lines.add("//  Generated: " + java.time.LocalDateTime.now());
+        lines.add("// ===========================================");
+        lines.add("//");
+        lines.add("// ═══════════════════════════════════════════════════════════════");
+        lines.add("//  📋 NEXT STEPS:");
+        lines.add("//  1. Review this file (adjust weights, check biome overrides)");
+        lines.add("//  2. Copy to: config/multivillageselector.json5");
+        lines.add("//  3. Restart Minecraft");
+        lines.add("//");
+        lines.add("//  💡 TIP: The weight numbers are deliberately simple (10, 50)");
+        lines.add("//       Adjust them to control spawn chances:");
+        lines.add("//       - Higher weight = spawns more often");
+        lines.add("//       - Lower weight = spawns less often");
+        lines.add("//       - Empty weight = chance of no village");
+        lines.add("//");
+        lines.add("//  📖 Documentation:");
+        lines.add("//     github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md");
+        lines.add("// ═══════════════════════════════════════════════════════════════");
+        lines.add("//");
+        lines.add("// Detected mods:");
+        for (String mod : villagesByMod.keySet()) {
+            lines.add("//   - " + mod + " (" + villagesByMod.get(mod).size() + " villages)");
+        }
+        lines.add("//");
+        lines.add("// ===========================================");
+        lines.add("");
+        lines.add("{");
+        lines.add("  enabled: true,");
+        lines.add("  debug_logging: false, // Set to true for verbose debugging");
+        lines.add("");
+
+        // replace_of
+        lines.add("  // Structures to intercept and replace");
+        lines.add("  replace_of: [");
+        lines.add("    // Vanilla villages");
+        lines.add("    \"minecraft:village_plains\",");
+        lines.add("    \"minecraft:village_desert\",");
+        lines.add("    \"minecraft:village_savanna\",");
+        lines.add("    \"minecraft:village_snowy\",");
+        lines.add("    \"minecraft:village_taiga\",");
+        if (hasBCA) {
+            lines.add("    // BCA villages (structure set override)");
+            for (String village : villagesByMod.get("bca")) {
+                // Skip witch_hut - it's not a village
+                if (village.contains("witch_hut")) continue;
+                lines.add("    \"" + village + "\",");
+            }
+        }
+        // Remove trailing comma
+        String lastLine = lines.get(lines.size() - 1);
+        lines.set(lines.size() - 1, lastLine.replace(",", ""));
+        lines.add("  ],");
+        lines.add("");
+
+        // prevent_spawn
+        lines.add("  // ⚠️ RECOMMENDED: Disable village spawning in each mod's config instead!");
+        lines.add("  // See docs/ModCompatibility.md for per-mod setup instructions.");
+        lines.add("  //");
+        lines.add("  // Only use prevent_spawn as a fallback if you can't disable via mod configs.");
+        lines.add("  // Examples:");
+        lines.add("  //   CTOV: Set generatesmallVillage/medium/large = false in ctov-common.toml");
+        lines.add("  //   BCA: Disable villages in cristellib config (or add to replace_of instead)");
+        lines.add("  prevent_spawn: [");
+        lines.add("    // Uncomment if needed:");
+        lines.add("    // \"ctov:*/*\",");
+        lines.add("    // \"towns_and_towers:village_*\",");
+        lines.add("  ],");
+        lines.add("");
+
+        // replace_with
+        lines.add("  // Villages to use as replacements, organized by biome category");
+        lines.add("  replace_with: {");
+
+        // Define all standard categories in order
+        String[] STANDARD_CATEGORIES = {
+            "plains", "desert", "savanna", "snowy", "taiga",
+            "jungle", "swamp", "beach", "dark_forest", "ocean", "mushroom", "cave"
+        };
+
+        for (String category : STANDARD_CATEGORIES) {
+            java.util.List<String> villages = villagesByCategory.getOrDefault(category, new java.util.ArrayList<>());
+
+            lines.add("");
+            lines.add("    // === " + category.toUpperCase() + " ===");
+
+            // Special comment for cave category
+            if (category.equals("cave")) {
+                lines.add("    // Cave biomes (deep_dark, dripstone_caves, lush_caves)");
+                lines.add("    // Villages sample at SURFACE level, so these rarely spawn");
+                lines.add("    // Keep empty unless you want villages in rare edge cases");
+            }
+
+            lines.add("    " + category + ": [");
+
+            if (villages.isEmpty()) {
+                // No villages detected for this category - show as empty with comment
+                if (category.equals("cave")) {
+                    lines.add("      // Intentionally empty - only modify if you want cave village spawns");
+                } else {
+                    lines.add("      // No villages detected - add modded villages here or leave empty");
+                }
+            } else {
+                // Has villages - add them
+                for (String village : villages) {
+                    lines.add("      { structure: \"" + village + "\", weight: 10 },");
+                }
+
+                // Add empty weight for sparse biomes (50% = visually obvious example of weighting)
+                if (category.equals("ocean") || category.equals("mushroom") ||
+                    category.equals("swamp")) {
+                    lines.add("      { empty: true, weight: 50 } // 50% chance no village (adjust as desired)");
+                } else {
+                    // Remove trailing comma for other categories
+                    lastLine = lines.get(lines.size() - 1);
+                    lines.set(lines.size() - 1, lastLine.substring(0, lastLine.length() - 1));
+                }
+            }
+
+            lines.add("    ],");
+        }
+
+        // DEFAULT pool
+        lines.add("");
+        lines.add("    // === DEFAULT (fallback for unmatched biomes) ===");
+        lines.add("    DEFAULT: [");
+        lines.add("      { structure: \"minecraft:village_plains\", weight: 10 },");
+        lines.add("      { empty: true, weight: 50 } // 50% chance no village (conservative fallback)");
+        lines.add("    ]");
+        lines.add("  },");
+        lines.add("");
+
+        // biome_category_overrides
+        lines.add("  // Override biome categorization (uncomment and adjust as needed)");
+        lines.add("  biome_category_overrides: {");
+        if (!uncategorizedBiomes.isEmpty()) {
+            lines.add("    // Uncategorized biomes detected:");
+            for (String biomeId : uncategorizedBiomes) {
+                lines.add("    // \"" + biomeId + "\": \"plains\", // or desert, snowy, etc.");
+            }
+        } else {
+            lines.add("    // Add custom overrides here if needed");
+        }
+        lines.add("  }");
+        lines.add("}");
+
+        return lines;
+    }
+
+    /**
+     * Handle /mvs debug command (show debug command help)
+     */
+    private static int executeDebugHelpCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        source.sendSuccess(() -> Component.literal("=== MVS Debug Commands (Advanced) ===")
+            .withStyle(ChatFormatting.GOLD), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        source.sendSuccess(() -> Component.literal("/mvs debug mod-weights [filter]")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show structure weights from structure_sets")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("  Optional filter: structure_set ID or pattern (e.g., 'minecraft:villages' or '*village*')")
+            .withStyle(ChatFormatting.DARK_GRAY), false);
+
+        source.sendSuccess(() -> Component.literal("  Displays mod-intended spawn weights from structure_set registry")
+            .withStyle(ChatFormatting.DARK_GRAY), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        source.sendSuccess(() -> Component.literal("/mvs debug mod-scan")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Scan all mods for village structures")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("  Shows registry state AND datapack/JAR definitions")
+            .withStyle(ChatFormatting.DARK_GRAY), false);
+
+        source.sendSuccess(() -> Component.literal("  Reveals what mods define even if overridden by others")
+            .withStyle(ChatFormatting.DARK_GRAY), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        source.sendSuccess(() -> Component.literal("⚠️  These commands are for advanced debugging only")
+            .withStyle(ChatFormatting.YELLOW), false);
+
+        return 1;
+    }
+
+    /**
+     * Handle /mvs debug mod-weights command (no filter)
+     */
+    private static int executeModWeightsCommand(CommandContext<CommandSourceStack> context) {
+        return executeModWeightsWithFilter(context, null);
+    }
+
+    /**
+     * Handle /mvs debug mod-weights <filter> command (with filter)
+     */
+    private static int executeModWeightsFilterCommand(CommandContext<CommandSourceStack> context) {
+        String filter = StringArgumentType.getString(context, "filter");
+        return executeModWeightsWithFilter(context, filter);
+    }
+
+    /**
+     * Handle /mvs debug mod-weights command with optional filter
+     * Queries the structure_set registry and writes weights to a file
+     */
+    private static int executeModWeightsWithFilter(CommandContext<CommandSourceStack> context, String filter) {
+        CommandSourceStack source = context.getSource();
+
+        if (filter != null) {
+            source.sendSuccess(() -> Component.literal("Querying structure weights (filter: " + filter + ")...")
+                .withStyle(ChatFormatting.YELLOW), false);
+        } else {
+            source.sendSuccess(() -> Component.literal("Querying structure weights from registry...")
+                .withStyle(ChatFormatting.YELLOW), false);
+        }
+
+        try {
+            net.minecraft.core.RegistryAccess registryAccess = source.getServer().registryAccess();
+            net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.StructureSet> structureSetRegistry =
+                registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+            net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.Structure> structureRegistry =
+                registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+
+            // Data structure: structure_set -> biome_tag -> [(weight, structure_id)]
+            Map<String, Map<String, List<String>>> structureSetData = new java.util.TreeMap<>();
+            Map<ResourceLocation, String> structureToBiomeTag = new HashMap<>();
+
+            // First, get biome tags for each structure
+            for (var entry : structureRegistry.entrySet()) {
+                ResourceLocation structureId = entry.getKey().location();
+                net.minecraft.world.level.levelgen.structure.Structure structure = entry.getValue();
+
+                // Try to get biome tag from structure
+                try {
+                    var biomeHolderSet = structure.biomes();
+
+                    // Check if it's a tag-based HolderSet
+                    var tagKey = biomeHolderSet.unwrapKey();
+                    if (tagKey.isPresent()) {
+                        // It's a tag! Get the tag name
+                        String tagName = tagKey.get().location().toString();
+                        structureToBiomeTag.put(structureId, "#" + tagName);
+                    } else {
+                        // It's a direct list of biomes
+                        structureToBiomeTag.put(structureId, "direct_biomes");
+                    }
+                } catch (Exception e) {
+                    structureToBiomeTag.put(structureId, "unknown: " + e.getMessage());
+                }
+            }
+
+            // Iterate through all structure_sets and organize by set -> tag -> structures
+            for (var entry : structureSetRegistry.entrySet()) {
+                ResourceLocation setId = entry.getKey().location();
+                net.minecraft.world.level.levelgen.structure.StructureSet structureSet = entry.getValue();
+                String setIdStr = setId.toString();
+
+                // Get all structures in this set with their weights
+                for (var selectionEntry : structureSet.structures()) {
+                    var structureHolder = selectionEntry.structure();
+                    int weight = selectionEntry.weight();
+
+                    // Get structure ID
+                    var structureKey = structureHolder.unwrapKey();
+                    if (structureKey.isPresent()) {
+                        ResourceLocation structureId = structureKey.get().location();
+                        String biomeTag = structureToBiomeTag.getOrDefault(structureId, "unknown");
+
+                        // Store: set -> tag -> [(weight, structure)]
+                        structureSetData
+                            .computeIfAbsent(setIdStr, k -> new java.util.TreeMap<>())
+                            .computeIfAbsent(biomeTag, k -> new ArrayList<>())
+                            .add(weight + " " + structureId);
+                    } else {
+                        // Empty/air entry! Add to special tag
+                        structureSetData
+                            .computeIfAbsent(setIdStr, k -> new java.util.TreeMap<>())
+                            .computeIfAbsent("(no tag - empty/air)", k -> new ArrayList<>())
+                            .add(weight + " (empty)");
+                        MultiVillageSelector.LOGGER.info("Found empty/air entry in set {} with weight {}", setId, weight);
+                    }
+                }
+            }
+
+            // Apply filter if provided
+            final Map<String, Map<String, List<String>>> filteredData;
+            if (filter != null && !filter.isEmpty()) {
+                Map<String, Map<String, List<String>>> tempFiltered = new java.util.TreeMap<>();
+
+                // Convert filter to regex pattern (support wildcards: * → .*)
+                String regexPattern = filter.replace("*", ".*");
+                java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(regexPattern, java.util.regex.Pattern.CASE_INSENSITIVE);
+
+                for (Map.Entry<String, Map<String, List<String>>> entry : structureSetData.entrySet()) {
+                    String setId = entry.getKey();
+                    if (pattern.matcher(setId).find()) {
+                        tempFiltered.put(setId, entry.getValue());
+                    }
+                }
+
+                if (tempFiltered.isEmpty()) {
+                    source.sendFailure(Component.literal("No structure sets match filter: " + filter));
+                    return 0;
+                }
+
+                filteredData = tempFiltered;
+            } else {
+                filteredData = structureSetData;
+            }
+
+            // Write to file
+            Path gameDir = source.getServer().getServerDirectory();
+            Path outputDir = gameDir.resolve("local/mvs");
+            java.nio.file.Files.createDirectories(outputDir);
+
+            String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+            Path outputFile = outputDir.resolve("mod-weights-" + timestamp + ".txt");
+
+            List<String> lines = new ArrayList<>();
+            lines.add("===========================================");
+            lines.add("  MVS Structure Weights from Structure Sets");
+            lines.add("===========================================");
+            lines.add("");
+            lines.add("Generated: " + timestamp);
+            if (filter != null) {
+                lines.add("Filter: " + filter);
+            }
+            lines.add("Total structure_sets: " + filteredData.size());
+            lines.add("");
+            lines.add("Format:");
+            lines.add("  structure_set_id");
+            lines.add("    #biome_tag");
+            lines.add("      - weight structure_id");
+            lines.add("      - weight (empty)");
+            lines.add("      total: sum");
+            lines.add("");
+            lines.add("Structures with the same biome tag form a POOL.");
+            lines.add("Weights only matter WITHIN a pool, not across pools.");
+            lines.add("");
+            lines.add("===========================================");
+            lines.add("");
+
+            // Output each structure set
+            for (Map.Entry<String, Map<String, List<String>>> setEntry : filteredData.entrySet()) {
+                String structureSetId = setEntry.getKey();
+                Map<String, List<String>> tagGroups = setEntry.getValue();
+
+                lines.add(structureSetId);
+
+                // Calculate which mods contributed structures to this set
+                java.util.Set<String> contributingMods = new java.util.TreeSet<>();
+                for (List<String> structures : tagGroups.values()) {
+                    for (String structure : structures) {
+                        String[] parts = structure.split(" ", 2);
+                        if (parts.length > 1 && !parts[1].equals("(empty)")) {
+                            String structureId = parts[1];
+                            if (structureId.contains(":")) {
+                                String namespace = structureId.split(":")[0];
+                                contributingMods.add(namespace);
+                            }
+                        }
+                    }
+                }
+                if (!contributingMods.isEmpty()) {
+                    lines.add("  Mods: " + String.join(", ", contributingMods));
+                }
+
+                // Get spacing info from structure set
+                var setKey = ResourceLocation.tryParse(structureSetId);
+                if (setKey != null) {
+
+                    var structureSet = structureSetRegistry.get(setKey);
+                    if (structureSet != null) {
+                        var placement = structureSet.placement();
+
+                        // Check if it's a RandomSpreadStructurePlacement (most common type)
+                        if (placement instanceof net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement randomPlacement) {
+                            try {
+                                // Use reflection to access protected/private fields
+                                var spacingField = net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement.class.getDeclaredField("spacing");
+                                var separationField = net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement.class.getDeclaredField("separation");
+                                var saltField = net.minecraft.world.level.levelgen.structure.placement.StructurePlacement.class.getDeclaredField("salt");
+
+                                spacingField.setAccessible(true);
+                                separationField.setAccessible(true);
+                                saltField.setAccessible(true);
+
+                                int spacing = (Integer) spacingField.get(randomPlacement);
+                                int separation = (Integer) separationField.get(randomPlacement);
+                                int salt = (Integer) saltField.get(randomPlacement);
+
+                                lines.add(String.format("  Spaced: %d-%d chunks (salt: %d)", separation, spacing, salt));
+                            } catch (Exception e) {
+                                lines.add("  Spaced: (error accessing placement data)");
+                            }
+                        } else {
+                            lines.add("  Spaced: (non-random placement)");
+                        }
+                    }
+                }
+
+
+                // Calculate total empty weight and total structure weight
+                int emptyWeight = 0;
+                int totalStructureWeight = 0;
+
+                // First pass: calculate totals
+                for (Map.Entry<String, List<String>> tagEntry : tagGroups.entrySet()) {
+                    String biomeTag = tagEntry.getKey();
+                    List<String> structures = tagEntry.getValue();
+
+                    for (String structure : structures) {
+                        String[] parts = structure.split(" ", 2);
+                        int weight = Integer.parseInt(parts[0]);
+
+                        if (biomeTag.equals("(no tag - empty/air)")) {
+                            emptyWeight += weight;
+                        } else {
+                            totalStructureWeight += weight;
+                        }
+                    }
+                }
+
+                // Always show empty weight (0 or positive) for consistency
+                lines.add("  Empty: " + emptyWeight);
+                lines.add("");
+
+                // Find max weight for padding calculation
+                int maxWeight = 0;
+                for (Map.Entry<String, List<String>> tagEntry : tagGroups.entrySet()) {
+                    if (tagEntry.getKey().equals("(no tag - empty/air)")) continue;
+
+                    for (String structure : tagEntry.getValue()) {
+                        String[] parts = structure.split(" ", 2);
+                        int weight = Integer.parseInt(parts[0]);
+                        maxWeight = Math.max(maxWeight, weight);
+                    }
+                }
+                int weightPadding = String.valueOf(maxWeight).length();
+
+                // Output each biome tag group
+                for (Map.Entry<String, List<String>> tagEntry : tagGroups.entrySet()) {
+                    String biomeTag = tagEntry.getKey();
+                    List<String> structures = tagEntry.getValue();
+
+                    // Skip empty entries (already shown at top)
+                    if (biomeTag.equals("(no tag - empty/air)")) {
+                        continue;
+                    }
+
+                    lines.add("  " + biomeTag);
+
+                    // Calculate total weight for this pool (first pass)
+                    int poolWeight = 0;
+                    for (String structure : structures) {
+                        String[] parts = structure.split(" ", 2);
+                        int weight = Integer.parseInt(parts[0]);
+                        poolWeight += weight;
+                    }
+
+                    // Grand total for this pool = pool structures + empty
+                    int grandTotal = poolWeight + emptyWeight;
+
+                    // Output each structure with percentage
+                    for (String structure : structures) {
+                        String[] parts = structure.split(" ", 2);
+                        int weight = Integer.parseInt(parts[0]);
+
+                        // Calculate percentage: weight / (poolWeight + emptyWeight)
+                        double percent = (weight * 100.0) / grandTotal;
+
+                        // Format: "    - 16 (20.8%) structure_id"
+                        String weightStr = String.format("%" + weightPadding + "d", weight);
+                        String percentStr = String.format("%5.1f%%", percent);
+                        lines.add(String.format("    - %s (%s) %s", weightStr, percentStr, parts[1]));
+                    }
+
+                    // Pool total with percentage
+                    double poolPercent = (poolWeight * 100.0) / grandTotal;
+                    lines.add(String.format("    total: %d/%d (%5.1f%%)", poolWeight, grandTotal, poolPercent));
+                    lines.add("");
+                }
+            }
+
+            lines.add("===========================================");
+            lines.add("How to use these weights:");
+            lines.add("");
+            lines.add("1. IDENTIFY POOLS - Each biome tag under a structure_set is a pool");
+            lines.add("   Example from BCA:");
+            lines.add("   - Pool 1: #bca:villages (default_small:16, default_mid:11, total:29)");
+            lines.add("   - Pool 2: #bca:dark (dark_small:16, dark_mid:11, total:27)");
+            lines.add("");
+            lines.add("2. INTERNAL RATIOS - Calculate percentages within each pool");
+            lines.add("   BCA #bca:villages pool:");
+            lines.add("   - default_small: 16/29 = 55.2%");
+            lines.add("   - default_mid: 11/29 = 37.9%");
+            lines.add("   - (empty): 2/29 = 6.9%");
+            lines.add("");
+            lines.add("3. NORMALIZE ACROSS MODS - Scale pool totals to match");
+            lines.add("   If BCA plains pool total = 29, CTOV plains pool total = 33:");
+            lines.add("   - Scale BCA structures by 33/29 = 1.14x");
+            lines.add("   - Both mods now have equal representation");
+            lines.add("   - Internal ratios preserved (55.2% stays 55.2%)");
+            lines.add("");
+            lines.add("4. CROSS-POOL WEIGHTS DON'T COMPARE");
+            lines.add("   Don't compare #bca:villages weights to #bca:dark weights!");
+            lines.add("   They spawn in different biomes, never compete directly.");
+            lines.add("===========================================");
+
+            java.nio.file.Files.write(outputFile, lines, java.nio.charset.StandardCharsets.UTF_8);
+
+            String relativePath = gameDir.relativize(outputFile).toString();
+            source.sendSuccess(() -> Component.literal("✅ Structure weights written to: ")
+                .withStyle(ChatFormatting.GREEN)
+                .append(Component.literal(relativePath)
+                    .withStyle(ChatFormatting.AQUA)), false);
+
+            int totalStructures = filteredData.values().stream()
+                .mapToInt(tagMap -> tagMap.values().stream().mapToInt(List::size).sum())
+                .sum();
+            source.sendSuccess(() -> Component.literal("Found " + totalStructures + " structure entries across " +
+                filteredData.size() + " structure sets")
+                .withStyle(ChatFormatting.GRAY), false);
+
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("❌ Error querying structure_set registry: " + e.getMessage())
+                .withStyle(ChatFormatting.RED));
+            MultiVillageSelector.LOGGER.error("Error in /mvs debug mod-weights command", e);
+            return 0;
+        }
+
+        return 1;
+    }
+
+    /**
+     * Scan registry for structures and return StructureInfo map
+     * Stage 1: Collect registry data (minecraft:villages + uncategorized)
+     */
+    private static Map<String, StructureInfo> scanRegistryForStructures(
+        net.minecraft.server.MinecraftServer server
+    ) {
+        Map<String, StructureInfo> structures = new HashMap<>();
+        net.minecraft.core.RegistryAccess registryAccess = server.registryAccess();
+        net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.StructureSet> structureSetRegistry =
+            registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+        net.minecraft.core.Registry<net.minecraft.world.level.levelgen.structure.Structure> structureRegistry =
+            registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+
+        // Get biome tags for all structures
+        Map<ResourceLocation, String> structureToBiomeTag = new HashMap<>();
+        for (var entry : structureRegistry.entrySet()) {
+            ResourceLocation structureId = entry.getKey().location();
+            net.minecraft.world.level.levelgen.structure.Structure structure = entry.getValue();
+
+            try {
+                var biomeHolderSet = structure.biomes();
+                var tagKey = biomeHolderSet.unwrapKey();
+                if (tagKey.isPresent()) {
+                    structureToBiomeTag.put(structureId, "#" + tagKey.get().location().toString());
+                } else {
+                    structureToBiomeTag.put(structureId, "direct_biomes");
+                }
+            } catch (Exception e) {
+                structureToBiomeTag.put(structureId, "error: " + e.getMessage());
+            }
+        }
+
+        // Track which structures are in structure_sets
+        Map<ResourceLocation, String> structureSetMembership = new HashMap<>();
+
+        // Scan all structure_sets and populate StructureInfo
+        for (var entry : structureSetRegistry.entrySet()) {
+            ResourceLocation setId = entry.getKey().location();
+            String setIdStr = setId.toString();
+            net.minecraft.world.level.levelgen.structure.StructureSet structureSet = entry.getValue();
+
+            for (var selectionEntry : structureSet.structures()) {
+                var structureKey = selectionEntry.structure().unwrapKey();
+                if (structureKey.isPresent()) {
+                    ResourceLocation structureId = structureKey.get().location();
+                    String structureIdStr = structureId.toString();
+                    int weight = selectionEntry.weight();
+
+                    // Track membership
+                    structureSetMembership.put(structureId, setIdStr);
+
+                    // Only process minecraft:villages structures
+                    if (setIdStr.equals(MINECRAFT_VILLAGES_SET)) {
+                        String biomeTag = structureToBiomeTag.getOrDefault(structureId, "unknown");
+
+                        // Filter out dimension-specific structures
+                        if (isDimensionSpecific(structureIdStr, biomeTag)) {
+                            continue;
+                        }
+
+                        StructureInfo info = structures.computeIfAbsent(structureIdStr, StructureInfo::new);
+                        info.registryWeight = weight;
+                        info.registrySet = setIdStr;
+                        info.registryBiome = biomeTag;
+                    }
+                }
+            }
+        }
+
+        // Also add uncategorized structures (not in any structure_set)
+        for (var entry : structureRegistry.entrySet()) {
+            ResourceLocation structureId = entry.getKey().location();
+            String structureIdStr = structureId.toString();
+
+            if (!structureSetMembership.containsKey(structureId)) {
+                String biomeTag = structureToBiomeTag.getOrDefault(structureId, "unknown");
+
+                // Filter out dimension-specific structures
+                if (isDimensionSpecific(structureIdStr, biomeTag)) {
+                    continue;
+                }
+
+                StructureInfo info = structures.computeIfAbsent(structureIdStr, StructureInfo::new);
+                info.registrySet = "NONE (uncategorized)";
+                info.registryBiome = biomeTag;
+                // Note: No weight for uncategorized structures
+            }
+        }
+
+        return structures;
+    }
+
+    /**
+     * Scan JAR files for structures and return JarScanData
+     * Stage 2: Collect JAR data (structure_set files + lithostitched modifiers)
+     * Only includes structures in "villages" structure_sets or uncategorized structures
+     */
+    private static JarScanData scanJarsForStructures(
+        net.minecraft.server.MinecraftServer server
+    ) {
+        JarScanData result = new JarScanData();
+        try {
+            // Get all loaded mod containers
+            var modList = net.neoforged.fml.ModList.get();
+            for (var modInfo : modList.getMods()) {
+                String modId = modInfo.getModId();
+                var modFile = modInfo.getOwningFile().getFile();
+
+                try {
+                    // First, scan structure_set files to get weights and empty weights
+                    Map<String, StructureJarInfo> structureSetData = scanAllStructureSetFiles(modFile, modId, result.structureSetInfo);
+
+                    // Then, scan individual structure files and merge with structure_set data
+                    List<StructureJarInfo> jarStructures = scanAllStructureFiles(modFile, modId, structureSetData);
+
+                    // Populate StructureInfo map - FILTER to villages structure_sets or uncategorized only
+                    for (StructureJarInfo jarInfo : jarStructures) {
+                        // Filter out dimension-specific structures
+                        if (isDimensionSpecific(jarInfo.name, jarInfo.biomeTag)) {
+                            continue;
+                        }
+
+                        // Filter: Only include if in a "villages" structure_set OR no structure_set
+                        boolean isInVillagesSet = jarInfo.structureSet != null &&
+                                                  jarInfo.structureSet.endsWith(":villages");
+                        boolean isUncategorized = jarInfo.structureSet == null;
+
+                        if (isInVillagesSet || isUncategorized) {
+                            StructureInfo info = result.structures.computeIfAbsent(jarInfo.name, StructureInfo::new);
+
+                            // Populate JAR data
+                            info.jarWeight = jarInfo.weight;
+                            info.jarSet = jarInfo.structureSet != null ? jarInfo.structureSet : "NONE (uncategorized)";
+                            info.jarBiome = jarInfo.biomeTag;
+                            info.jarSource = jarInfo.foundInStructureSet ? "structure_set" : "structure_file";
+                        }
+                    }
+
+                } catch (Exception e) {
+                    MultiVillageSelector.LOGGER.warn("Failed to scan mod {}: {}", modId, e.getMessage());
+                }
+            }
+
+            // ALSO scan .connector directory for Fabric mods loaded via Sinytra Connector
+            scanConnectorDatapacksForStructures(server, result.structures, result.structureSetInfo);
+
+        } catch (Exception e) {
+            MultiVillageSelector.LOGGER.error("Error scanning mod JARs", e);
+        }
+
+        return result;
+    }
+
+    /**
+     * Scan .connector/data directory for Fabric mods and populate StructureInfo map
+     */
+    private static void scanConnectorDatapacksForStructures(
+        net.minecraft.server.MinecraftServer server,
+        Map<String, StructureInfo> structures,
+        Map<String, StructureSetInfo> structureSetInfo
+    ) {
+        try {
+            Path gameDir = server.getServerDirectory();
+            Path connectorDir = gameDir.resolve("mods/.connector/data");
+
+            if (!java.nio.file.Files.exists(connectorDir)) {
+                return;
+            }
+
+            // Scan structure_set files first
+            Map<String, StructureJarInfo> connectorStructureSets = new HashMap<>();
+            java.nio.file.Files.walk(connectorDir)
+                .filter(path -> path.toString().contains("worldgen/structure_set"))
+                .filter(path -> path.toString().endsWith(".json"))
+                .forEach(path -> {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        String relativePath = connectorDir.relativize(path).toString();
+                        String[] parts = relativePath.split("/");
+
+                        if (parts.length >= 4) {
+                            String namespace = parts[0];
+                            String setName = path.getFileName().toString().replace(".json", "");
+                            String setId = namespace + ":" + setName;
+
+                            // Parse JSON using Gson
+                            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+                            if (root.has("structures")) {
+                                JsonArray jarStructures = root.getAsJsonArray("structures");
+
+                                for (JsonElement element : jarStructures) {
+                                    JsonObject structureEntry = element.getAsJsonObject();
+
+                                    if (structureEntry.has("structure")) {
+                                        String structureId = structureEntry.get("structure").getAsString();
+                                        Integer weight = structureEntry.has("weight") ?
+                                            structureEntry.get("weight").getAsInt() : null;
+
+                                        // Store - figure out mod from structure ID
+                                        String modId = structureId.contains(":") ? structureId.split(":")[0] : "unknown";
+                                        StructureJarInfo info = connectorStructureSets.computeIfAbsent(structureId,
+                                            k -> new StructureJarInfo(k, modId));
+                                        info.structureSet = setId;
+                                        info.weight = weight;
+                                        info.foundInStructureSet = true;
+                                    } else if (structureEntry.has("weight")) {
+                                        // Empty entry! Track empty weight for this structure_set
+                                        Integer emptyWeight = structureEntry.get("weight").getAsInt();
+                                        StructureSetInfo setInfo = structureSetInfo.computeIfAbsent(setId,
+                                            k -> new StructureSetInfo(k));
+                                        setInfo.emptyWeight = emptyWeight;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        MultiVillageSelector.LOGGER.warn("[JAR-SCAN] Failed to parse connector structure_set: {}", e.getMessage());
+                    }
+                });
+
+            // Now scan structure files and merge
+            java.nio.file.Files.walk(connectorDir)
+                .filter(path -> path.toString().contains("worldgen/structure/"))
+                .filter(path -> !path.toString().contains("structure_set"))
+                .filter(path -> !path.toString().contains("/tags/"))
+                .filter(path -> path.toString().endsWith(".json"))
+                .forEach(path -> {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        String relativePath = connectorDir.relativize(path).toString();
+
+                        String[] parts = relativePath.split("/");
+                        if (parts.length >= 4) {
+                            String namespace = parts[0];
+                            StringBuilder structurePathBuilder = new StringBuilder();
+                            for (int i = 3; i < parts.length; i++) {
+                                if (i > 3) structurePathBuilder.append("/");
+                                structurePathBuilder.append(parts[i]);
+                            }
+                            String structurePath = structurePathBuilder.toString().replace(".json", "");
+                            String structureId = namespace + ":" + structurePath;
+
+                            // Get or create info
+                            StructureJarInfo jarInfo = connectorStructureSets.get(structureId);
+                            if (jarInfo == null) {
+                                String modId = namespace;
+                                jarInfo = new StructureJarInfo(structureId, modId);
+                            }
+
+                            // Extract biome tag
+                            if (content.contains("\"biomes\"")) {
+                                int biomeStart = content.indexOf("\"biomes\"");
+                                int colonPos = content.indexOf(":", biomeStart);
+                                if (colonPos > biomeStart) {
+                                    int biomeEnd = content.indexOf(",", colonPos);
+                                    if (biomeEnd == -1) biomeEnd = content.indexOf("}", colonPos);
+                                    if (biomeEnd > colonPos) {
+                                        String biomeInfo = content.substring(colonPos + 1, Math.min(biomeEnd, colonPos + 100));
+                                        biomeInfo = biomeInfo.replace("\n", " ").replace("\"", "").replace("[", "").replace("]", "").trim();
+                                        jarInfo.biomeTag = biomeInfo;
+                                    }
+                                }
+                            }
+
+                            jarInfo.foundInStructureFile = true;
+
+                            // Filter out dimension-specific structures
+                            if (isDimensionSpecific(structureId, jarInfo.biomeTag)) {
+                                return;
+                            }
+
+                            // Filter: Only include if in a "villages" structure_set OR no structure_set
+                            boolean isInVillagesSet = jarInfo.structureSet != null &&
+                                                      jarInfo.structureSet.endsWith(":villages");
+                            boolean isUncategorized = jarInfo.structureSet == null;
+
+                            if (isInVillagesSet || isUncategorized) {
+                                // Add to appropriate StructureInfo
+                                StructureInfo info = structures.computeIfAbsent(structureId, StructureInfo::new);
+                                info.jarWeight = jarInfo.weight;
+                                info.jarSet = jarInfo.structureSet != null ? jarInfo.structureSet : "NONE (uncategorized)";
+                                info.jarBiome = jarInfo.biomeTag;
+                                info.jarSource = jarInfo.foundInStructureSet ? "structure_set" : "structure_file";
+                            }
+                        }
+                    } catch (Exception e) {
+                        // Skip
+                    }
+                });
+
+        } catch (Exception e) {
+            MultiVillageSelector.LOGGER.warn("[JAR-SCAN] Error scanning .connector directory: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Handle /mvs debug mod-scan command
+     * Scans all mods/datapacks for village structures and outputs comprehensive report
+     */
+    private static int executeModScanCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        source.sendSuccess(() -> Component.literal("Scanning registry and mods for village structures...")
+            .withStyle(ChatFormatting.YELLOW), false);
+
+        try {
+            Path gameDir = source.getServer().getServerDirectory();
+            Path outputDir = gameDir.resolve("local/mvs");
+            java.nio.file.Files.createDirectories(outputDir);
+
+            String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+            Path outputFile = outputDir.resolve("mod-scan-" + timestamp + ".txt");
+
+            // ===========================================
+            // UNIFIED DATA COLLECTION (ONE PASS)
+            // ===========================================
+            ScanResult scan = scanAllStructures(source.getServer());
+
+            // ===========================================
+            // OUTPUT GENERATION
+            // ===========================================
+            List<String> lines = new ArrayList<>();
+            lines.add("===========================================");
+            lines.add("  MVS Unified Structure Analysis");
+            lines.add("===========================================");
+            lines.add("");
+            lines.add("Generated: " + timestamp);
+            lines.add("");
+            lines.add("Scope: Only structures in 'villages' structure_sets + uncategorized");
+            lines.add("");
+            lines.add("Collected data from:");
+            lines.add("  1. Registry (minecraft:villages structure_set + uncategorized structures)");
+            lines.add("  2. JAR files (*:villages structure_sets + uncategorized structures)");
+            lines.add("");
+            lines.add("Format:");
+            lines.add("  Structure ID");
+            lines.add("    Registry: weight X, set Y, biomes Z");
+            lines.add("    JAR: weight X, set Y, biomes Z, source (structure_set/lithostitched)");
+            lines.add("    Final: weight X (highest), biomes Z (registry preferred)");
+            lines.add("");
+            lines.add("===========================================");
+            lines.add("");
+
+            // Output all CORE structures sorted by mod
+            Map<String, List<StructureInfo>> structuresByMod = new TreeMap<>();
+            for (StructureInfo info : scan.coreStructures) {
+                structuresByMod.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
+            }
+
+            for (Map.Entry<String, List<StructureInfo>> modEntry : structuresByMod.entrySet()) {
+                String modId = modEntry.getKey();
+                List<StructureInfo> modStructures = modEntry.getValue();
+
+                lines.add("=== " + modId.toUpperCase() + " (" + modStructures.size() + " structures) ===");
+                lines.add("");
+
+                // Group structures by structure_set
+                Map<String, List<StructureInfo>> structuresBySet = new TreeMap<>();
+                for (StructureInfo info : modStructures) {
+                    String setId = info.getFinalSet();
+                    if (setId != null) {
+                        structuresBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+                    }
+                }
+
+                // Output each structure_set with its structures and weight analysis
+                for (Map.Entry<String, List<StructureInfo>> setEntry : structuresBySet.entrySet()) {
+                    String setId = setEntry.getKey();
+                    List<StructureInfo> setStructures = setEntry.getValue();
+
+                    // Sort structures alphabetically within set
+                    setStructures.sort(Comparator.comparing(s -> s.id));
+
+                    // Get structure_set info
+                    StructureSetInfo setInfo = scan.structureSetInfo.get(setId);
+                    Integer emptyWeight = setInfo != null && setInfo.emptyWeight != null ? setInfo.emptyWeight : 0;
+
+                    // Header with structure_set and empty weight
+                    lines.add("Structure Set: " + setId + " (Empty Weight: " + emptyWeight + ")");
+
+                    // List structures with clean format: weight - structure_id
+                    for (StructureInfo info : setStructures) {
+                        Integer weight = info.getFinalWeight();
+                        if (weight != null) {
+                            lines.add(String.format("  %3d - %s", weight, info.id));
+                        } else {
+                            lines.add("    ? - " + info.id + " (NO WEIGHT)");
+                        }
+                    }
+
+                    lines.add("");
+
+                    // Add weight analysis for this structure_set
+                    addWeightAnalysisForSet(lines, setStructures, setInfo);
+                }
+
+                lines.add("");
+            }
+
+            lines.add("===========================================");
+            lines.add("SUMMARY");
+            lines.add("===========================================");
+            lines.add("Total structures: " + scan.coreStructures.size());
+            lines.add("Total mods: " + structuresByMod.size());
+
+            int withRegistryData = (int) scan.coreStructures.stream()
+                .filter(s -> s.registryWeight != null || s.registrySet != null)
+                .count();
+            int withJarData = (int) scan.coreStructures.stream()
+                .filter(s -> s.jarWeight != null || s.jarSet != null)
+                .count();
+
+            lines.add("Structures with registry data: " + withRegistryData);
+            lines.add("Structures with JAR data: " + withJarData);
+            lines.add("===========================================");
+            lines.add("");
+            lines.add("");
+
+            // ===========================================
+            // FYI: OTHER VILLAGE-RELATED STRUCTURES
+            // ===========================================
+            lines.add("===========================================");
+            lines.add("  FYI: Other Village-Related Structures");
+            lines.add("===========================================");
+            lines.add("");
+            lines.add("The following structures have 'village' in their name but use");
+            lines.add("CUSTOM structure_sets (not *:villages). MVS cannot automatically");
+            lines.add("handle these - you may need to configure them manually.");
+            lines.add("");
+
+            // Combine likely + questionable structures
+            List<StructureInfo> allOtherStructures = new ArrayList<>();
+            allOtherStructures.addAll(scan.likelyStructures);
+            allOtherStructures.addAll(scan.questionableStructures);
+
+            if (allOtherStructures.isEmpty()) {
+                lines.add("No other village-related structures found.");
+            } else {
+                // Group by mod
+                Map<String, List<StructureInfo>> otherStructuresByMod = new TreeMap<>();
+                for (StructureInfo info : allOtherStructures) {
+                    otherStructuresByMod.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
+                }
+
+                for (Map.Entry<String, List<StructureInfo>> modEntry : otherStructuresByMod.entrySet()) {
+                    String modId = modEntry.getKey();
+                    List<StructureInfo> modStructures = modEntry.getValue();
+
+                    lines.add("=== " + modId.toUpperCase() + " (" + modStructures.size() + " structures) ===");
+                    lines.add("");
+
+                    // Group by structure_set
+                    Map<String, List<StructureInfo>> structuresBySet = new TreeMap<>();
+                    for (StructureInfo info : modStructures) {
+                        String setId = info.getFinalSet();
+                        if (setId != null) {
+                            structuresBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+                        }
+                    }
+
+                    // Output each structure_set
+                    for (Map.Entry<String, List<StructureInfo>> setEntry : structuresBySet.entrySet()) {
+                        String setId = setEntry.getKey();
+                        List<StructureInfo> setStructures = setEntry.getValue();
+
+                        // Sort alphabetically
+                        setStructures.sort(Comparator.comparing(s -> s.id));
+
+                        // Get structure_set info
+                        StructureSetInfo setInfo = scan.structureSetInfo.get(setId);
+                        Integer emptyWeight = setInfo != null && setInfo.emptyWeight != null ? setInfo.emptyWeight : 0;
+
+                        lines.add("Structure Set: " + setId + " (Empty Weight: " + emptyWeight + ")");
+
+                        // List structures with clean format
+                        for (StructureInfo info : setStructures) {
+                            Integer weight = info.getFinalWeight();
+                            if (weight != null) {
+                                lines.add(String.format("  %3d - %s", weight, info.id));
+                            } else {
+                                lines.add("    ? - " + info.id + " (NO WEIGHT)");
+                            }
+                        }
+
+                        lines.add("");
+
+                        // Add weight analysis
+                        addWeightAnalysisForSet(lines, setStructures, setInfo);
+                    }
+
+                    lines.add("");
+                }
+
+                lines.add("NOTE: These structures use their own structure_sets and will NOT be");
+                lines.add("automatically included by MVS. To use them, you may need to:");
+                lines.add("  1. Add their structure_set to MVS config (if they can be intercepted)");
+                lines.add("  2. Configure the mod directly to disable their native spawning");
+                lines.add("  3. Use prevent_spawn patterns if they conflict with MVS villages");
+            }
+
+            lines.add("===========================================");
+
+            // Write to file
+            java.nio.file.Files.write(outputFile, lines, java.nio.charset.StandardCharsets.UTF_8);
+
+            String relativePath = gameDir.relativize(outputFile).toString();
+            source.sendSuccess(() -> Component.literal("✅ Mod scan written to: ")
+                .withStyle(ChatFormatting.GREEN)
+                .append(Component.literal(relativePath)
+                    .withStyle(ChatFormatting.AQUA)), false);
+
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("❌ Error scanning mods: " + e.getMessage())
+                .withStyle(ChatFormatting.RED));
+            MultiVillageSelector.LOGGER.error("Error in /mvs debug mod-scan command", e);
+            return 0;
+        }
+
+        return 1;
+    }
+
+    /**
+     * Initialize vanilla villages (hardcoded - vanilla JAR scanning is unreliable)
+     */
+    private static void initializeVanillaVillages(ScanResult result) {
+        String[] vanillaVillages = {
+            "minecraft:village_plains",
+            "minecraft:village_desert",
+            "minecraft:village_savanna",
+            "minecraft:village_snowy",
+            "minecraft:village_taiga"
+        };
+        String[] vanillaBiomes = {
+            "#minecraft:has_structure/village_plains",
+            "#minecraft:has_structure/village_desert",
+            "#minecraft:has_structure/village_savanna",
+            "#minecraft:has_structure/village_snowy",
+            "#minecraft:has_structure/village_taiga"
+        };
+
+        for (int i = 0; i < vanillaVillages.length; i++) {
+            StructureInfo info = new StructureInfo(vanillaVillages[i]);
+            info.registryWeight = 1;
+            info.registrySet = MINECRAFT_VILLAGES_SET;
+            info.registryBiome = vanillaBiomes[i];
+            info.jarWeight = 1;
+            info.jarSet = MINECRAFT_VILLAGES_SET;
+            info.jarBiome = vanillaBiomes[i];
+            info.jarSource = "hardcoded";
+            result.allStructures.put(vanillaVillages[i], info);
+        }
+
+        // Add structure_set info for minecraft:villages
+        StructureSetInfo vanillaSetInfo = new StructureSetInfo(MINECRAFT_VILLAGES_SET);
+        vanillaSetInfo.emptyWeight = 0;
+        result.structureSetInfo.put(MINECRAFT_VILLAGES_SET, vanillaSetInfo);
+    }
+
+    /**
+     * Unified structure scanning - ONE pass over registry + JARs, then categorize
+     */
+    private static ScanResult scanAllStructures(net.minecraft.server.MinecraftServer server) {
+        ScanResult result = new ScanResult();
+
+        // Pre-populate vanilla villages
+        initializeVanillaVillages(result);
+
+        // Scan registry and JARs ONCE
+        Map<String, StructureInfo> registryStructures = scanRegistryForStructures(server);
+        JarScanData jarData = scanJarsForStructures(server);
+
+        // Merge registry structures into result
+        for (Map.Entry<String, StructureInfo> entry : registryStructures.entrySet()) {
+            result.allStructures.put(entry.getKey(), entry.getValue());
+        }
+
+        // Merge JAR structures into result
+        for (Map.Entry<String, StructureInfo> entry : jarData.structures.entrySet()) {
+            StructureInfo existing = result.allStructures.get(entry.getKey());
+            if (existing != null) {
+                // Merge JAR data into existing structure
+                StructureInfo jarInfo = entry.getValue();
+                existing.jarWeight = jarInfo.jarWeight;
+                existing.jarSet = jarInfo.jarSet;
+                existing.jarBiome = jarInfo.jarBiome;
+                existing.jarSource = jarInfo.jarSource;
+            } else {
+                // New structure from JAR
+                result.allStructures.put(entry.getKey(), entry.getValue());
+            }
+        }
+
+        // Merge structure set info
+        result.structureSetInfo.putAll(jarData.structureSetInfo);
+
+        // Categorize all structures
+        for (StructureInfo info : result.allStructures.values()) {
+            String setId = info.getFinalSet();
+
+            // Skip dimension-specific structures
+            String biomeTag = info.getFinalBiome();
+            if (isDimensionSpecific(info.id, biomeTag)) {
+                continue;
+            }
+
+            if (setId != null && setId.endsWith(":villages")) {
+                // Core village structures (*:villages sets)
+                result.coreStructures.add(info);
+            } else if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                // Has custom structure_set - check if it's a village
+                if (!info.id.toLowerCase().contains("village")) {
+                    continue; // Not a village structure
+                }
+
+                // Check UNLIKELY patterns
+                if (isUnlikelyByName(info.id)) {
+                    continue; // Skip unlikely structures
+                }
+
+                // LIKELY vs QUESTIONABLE
+                if (isLikelyVillageStructureSet(setId, result.allStructures)) {
+                    result.likelyStructures.add(info);
+                } else {
+                    result.questionableStructures.add(info);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Check if structure_set is likely a village (vs questionable)
+     */
+    private static boolean isLikelyVillageStructureSet(String setId, Map<String, StructureInfo> allStructures) {
+        String setName = setId.toLowerCase();
+
+        // Pattern 1: Structure_set name contains "village" or "town"
+        if (setName.contains("village") || setName.contains("town")) {
+            return true;
+        }
+
+        // Pattern 2: Multiple structures in this structure_set
+        long structureCountInSet = allStructures.values().stream()
+            .filter(info -> setId.equals(info.getFinalSet()))
+            .count();
+
+        return structureCountInSet > 1;
+    }
+
+    /**
+     * Check if structure name has UNLIKELY patterns (decorations, not villages)
+     */
+    private static boolean isUnlikelyByName(String structureName) {
+        String lower = structureName.toLowerCase();
+
+        // Check if structure_set name exactly matches structure name (underwater_village pattern)
+        // We can't check this here without StructureJarInfo, so skip for now
+
+        // Structure name contains non-village keywords
+        String[] nonVillageKeywords = {
+            "statue", "monument", "decoration", "fountain", "well",
+            "warship", "ship", "gate", "tower", "shrine", "temple",
+            "library", "dungeon", "ruins", "broken"
+        };
+
+        for (String keyword : nonVillageKeywords) {
+            if (lower.contains(keyword)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Calculate normalized weights for a set of structures
+     * Returns map of original_weight -> normalized_weight
+     */
+    private static Map<Integer, Integer> calculateNormalizedWeights(
+            List<StructureInfo> setStructures,
+            StructureSetInfo setInfo) {
+
+        // Calculate original total and weight distribution
+        int originalTotal = 0;
+        Map<Integer, Integer> weightCounts = new HashMap<>();
+        for (StructureInfo info : setStructures) {
+            Integer weight = info.getFinalWeight();
+            if (weight != null) {
+                originalTotal += weight;
+                weightCounts.put(weight, weightCounts.getOrDefault(weight, 0) + 1);
+            }
+        }
+
+        Map<Integer, Integer> result = new HashMap<>();
+        if (originalTotal == 0 || setStructures.isEmpty()) {
+            return result;
+        }
+
+        double originalAverage = originalTotal / (double) setStructures.size();
+
+        // Calculate rarity factor based on spacing
+        double rarityFactor = 1.0;
+        if (setInfo != null && setInfo.spacing != null && setInfo.spacing > 0) {
+            double spacingRatio = setInfo.spacing / (double) VANILLA_SPACING;
+            rarityFactor = spacingRatio * spacingRatio;  // Square for area effect
+        }
+
+        double multiplier = (TARGET_AVERAGE_WEIGHT / originalAverage) / rarityFactor;
+
+        // Calculate normalized weights
+        for (Integer originalWeight : weightCounts.keySet()) {
+            int normalized = (int) Math.ceil(originalWeight * multiplier);
+            result.put(originalWeight, normalized);
+        }
+
+        return result;
+    }
+
+    /**
+     * Add weight analysis section for a structure_set
+     * Shows normalization with average-based strategy (target avg: 25)
+     * Applies rarity adjustment based on spacing compared to vanilla villages
+     */
+    private static void addWeightAnalysisForSet(
+            List<String> lines,
+            List<StructureInfo> setStructures,
+            StructureSetInfo setInfo) {
+
+        int emptyWeight = setInfo != null && setInfo.emptyWeight != null ? setInfo.emptyWeight : 0;
+
+        if (setStructures.isEmpty()) return;
+
+        // Calculate original total and average
+        int originalTotal = 0;
+        Map<Integer, Integer> weightCounts = new HashMap<>();  // Track weight distribution
+        Map<Integer, List<String>> weightToStructures = new HashMap<>();  // Track which structures have which weight
+
+        for (StructureInfo info : setStructures) {
+            Integer weight = info.getFinalWeight();
+            if (weight != null) {
+                originalTotal += weight;
+                weightCounts.put(weight, weightCounts.getOrDefault(weight, 0) + 1);
+
+                // Extract simple structure name (last part after /)
+                String simpleName = info.id.contains("/") ?
+                    info.id.substring(info.id.lastIndexOf("/") + 1) :
+                    info.id.substring(info.id.lastIndexOf(":") + 1);
+                weightToStructures.computeIfAbsent(weight, k -> new ArrayList<>()).add(simpleName);
+            }
+        }
+
+        if (originalTotal == 0) return;
+
+        double originalAverage = originalTotal / (double) setStructures.size();
+
+        // Calculate rarity factor based on spacing (for display purposes)
+        double rarityFactor = 1.0;
+        if (setInfo != null && setInfo.spacing != null && setInfo.spacing > 0) {
+            double spacingRatio = setInfo.spacing / (double) VANILLA_SPACING;
+            rarityFactor = spacingRatio * spacingRatio;  // Square for area effect
+        }
+
+        double multiplier = rarityFactor != 1.0 ?
+            (TARGET_AVERAGE_WEIGHT / originalAverage) / rarityFactor :
+            (TARGET_AVERAGE_WEIGHT / originalAverage);
+
+        // Use shared normalization helper
+        Map<Integer, Integer> originalToNormalized = calculateNormalizedWeights(setStructures, setInfo);
+
+        // Calculate normalized total
+        int normalizedTotal = 0;
+        for (Integer originalWeight : weightCounts.keySet()) {
+            Integer normalized = originalToNormalized.get(originalWeight);
+            if (normalized != null) {
+                normalizedTotal += normalized * weightCounts.get(originalWeight);
+            }
+        }
+
+        // Detect pattern
+        boolean isUniform = weightCounts.size() == 1;
+        String pattern;
+        String ratio = "";
+        if (isUniform) {
+            pattern = "Even distribution (all weight=" + weightCounts.keySet().iterator().next() + ")";
+        } else {
+            // Show ratio
+            List<Integer> uniqueWeights = new ArrayList<>(weightCounts.keySet());
+            uniqueWeights.sort(Comparator.reverseOrder());
+            ratio = uniqueWeights.stream().map(String::valueOf).reduce((a, b) -> a + ":" + b).orElse("");
+
+            // Show normalized ratio
+            List<Integer> normalizedWeights = new ArrayList<>();
+            for (Integer w : uniqueWeights) {
+                normalizedWeights.add(originalToNormalized.get(w));
+            }
+            String normalizedRatio = normalizedWeights.stream().map(String::valueOf).reduce((a, b) -> a + ":" + b).orElse("");
+
+            pattern = String.format("Intentional variance (ratio %s preserved as %s)", ratio, normalizedRatio);
+        }
+
+        // Output analysis
+        lines.add("WEIGHT ANALYSIS:");
+        lines.add(String.format("  Original Total: %d (%d structures)", originalTotal, setStructures.size()));
+        lines.add(String.format("  Original Average: %.1f", originalAverage));
+
+        // Show spacing and rarity if available
+        if (setInfo != null && setInfo.spacing != null && setInfo.spacing > 0) {
+            lines.add(String.format("  Spacing: %d chunks (separation: %d) - vanilla: %d chunks",
+                setInfo.spacing,
+                setInfo.separation != null ? setInfo.separation : 0,
+                VANILLA_SPACING));
+            if (rarityFactor != 1.0) {
+                lines.add(String.format("  Rarity: %.1fx compared to vanilla (spacing-based adjustment)",
+                    rarityFactor));
+            }
+        }
+
+        lines.add(String.format("  Normalized Total: %d (target avg: %d, multiplier: %.3f)",
+            normalizedTotal, TARGET_AVERAGE_WEIGHT, multiplier));
+        lines.add("");
+
+        // Spawn probability with empty weight
+        int grandTotal = originalTotal + emptyWeight;
+        double spawnChance = (originalTotal * 100.0) / grandTotal;
+        double emptyChance = (emptyWeight * 100.0) / grandTotal;
+        lines.add("  Spawn Probability (with empty weight):");
+        lines.add(String.format("    Total: %d (%d structures + %d empty)", grandTotal, originalTotal, emptyWeight));
+        lines.add(String.format("    Spawn Chance: %.1f%% (%d/%d)", spawnChance, originalTotal, grandTotal));
+        lines.add(String.format("    Empty Chance: %.1f%% (%d/%d)", emptyChance, emptyWeight, grandTotal));
+        lines.add("");
+
+        // Weight distribution
+        lines.add(String.format("  Weight Distribution (original → normalized to avg %d):", TARGET_AVERAGE_WEIGHT));
+
+        // Sort weights descending
+        List<Integer> sortedWeights = new ArrayList<>(weightCounts.keySet());
+        sortedWeights.sort(Comparator.reverseOrder());
+
+        for (Integer originalWeight : sortedWeights) {
+            int count = weightCounts.get(originalWeight);
+            int normalized = originalToNormalized.get(originalWeight);
+            double percent = (originalWeight * count * 100.0) / originalTotal;
+
+            // Get structure names
+            List<String> structNames = weightToStructures.get(originalWeight);
+            String structList = String.join(", ", structNames.size() > 3 ?
+                structNames.subList(0, 3) : structNames);
+            if (structNames.size() > 3) structList += ", ...";
+
+            lines.add(String.format("    %2d → %2d  (%.1f%%) [%d structure%s: %s]",
+                originalWeight, normalized, percent, count, count == 1 ? "" : "s", structList));
+        }
+        lines.add("");
+
+        lines.add("  Pattern: " + pattern);
+        lines.add("  Strategy: Normalize by average weight (target: " + TARGET_AVERAGE_WEIGHT + ")");
+        lines.add("");
+    }
+
+    /**
+     * Helper method to filter out dimension-specific structures
+     * Filters: aether, end, nether, deep_dark dimensions
+     */
+    private static boolean isDimensionSpecific(String structureId, String biomeTag) {
+        String combined = (structureId + " " + (biomeTag != null ? biomeTag : "")).toLowerCase();
+        return combined.contains("aether") ||
+               combined.contains("_end") ||
+               combined.contains("end_") ||
+               combined.contains("ender") ||
+               combined.contains("nether") ||
+               combined.contains("deep_dark");
+    }
+
+    /**
+     * JAR scan data (structures + structure set info)
+     */
+    private static class JarScanData {
+        Map<String, StructureInfo> structures = new HashMap<>();
+        Map<String, StructureSetInfo> structureSetInfo = new HashMap<>();
+    }
+
+    /**
+     * Result of unified structure scanning
+     */
+    private static class ScanResult {
+        Map<String, StructureInfo> allStructures = new HashMap<>();
+        Map<String, StructureSetInfo> structureSetInfo = new HashMap<>();
+
+        // Categorized structures
+        List<StructureInfo> coreStructures = new ArrayList<>();        // *:villages sets
+        List<StructureInfo> likelyStructures = new ArrayList<>();      // Likely other villages
+        List<StructureInfo> questionableStructures = new ArrayList<>(); // Uncertain structures
+    }
+
+    /**
+     * Structure set metadata (empty weights, spacing, etc.)
+     */
+    private static class StructureSetInfo {
+        String setId;
+        Integer emptyWeight;
+        Integer spacing;      // Spacing in chunks
+        Integer separation;   // Minimum separation in chunks
+
+        StructureSetInfo(String setId) {
+            this.setId = setId;
+        }
+    }
+
+    /**
+     * Unified structure information from all sources
+     */
+    private static class StructureInfo {
+        String id;                    // e.g. "bca:village/default_small"
+        String modId;                 // e.g. "bca"
+
+        // Registry data
+        Integer registryWeight;       // Weight from active registry
+        String registrySet;           // Structure set from registry (e.g. "minecraft:villages")
+        String registryBiome;         // Biome tag from registry
+
+        // JAR data
+        Integer jarWeight;            // Weight from structure_set or lithostitched modifier
+        String jarSet;                // Structure set from JAR
+        String jarBiome;              // Biome tag from structure file in JAR
+        String jarSource;             // "structure_set" or "lithostitched"
+
+        StructureInfo(String id) {
+            this.id = id;
+            this.modId = id.contains(":") ? id.split(":")[0] : "unknown";
+        }
+
+        // Get final weight (highest wins)
+        Integer getFinalWeight() {
+            if (registryWeight == null && jarWeight == null) return null;
+            if (registryWeight == null) return jarWeight;
+            if (jarWeight == null) return registryWeight;
+            return Math.max(registryWeight, jarWeight);
+        }
+
+        // Get final biome (registry preferred, fallback to JAR)
+        String getFinalBiome() {
+            if (registryBiome != null && !registryBiome.equals("unknown")) return registryBiome;
+            return jarBiome;
+        }
+
+        // Get final structure set (prefer JAR over registry - JAR has authoritative structure_set data)
+        String getFinalSet() {
+            // Prefer JAR if it has a real structure_set (not uncategorized)
+            if (jarSet != null && !jarSet.equals("NONE (uncategorized)")) return jarSet;
+            // Fallback to registry
+            if (registrySet != null) return registrySet;
+            // Last resort: uncategorized
+            return "NONE (uncategorized)";
+        }
+    }
+
+    /**
+     * Helper class for JAR scanning intermediate data
+     */
+    private static class StructureJarInfo {
+        String name;                  // Structure ID
+        String modId;                 // Mod that defines it
+        Integer weight;               // Weight from structure_set
+        String structureSet;          // Structure set ID
+        String biomeTag;              // Biome tag from structure file
+        boolean foundInStructureSet;  // Found in structure_set file
+        boolean foundInStructureFile; // Found in individual structure file
+
+        StructureJarInfo(String name, String modId) {
+            this.name = name;
+            this.modId = modId;
+        }
+    }
+
+    /**
+     * Scan loaded mod JARs for ALL structure definitions
+     */
+    private static Map<String, List<StructureJarInfo>> scanModJarsForAllStructures(net.minecraft.server.MinecraftServer server) {
+        Map<String, List<StructureJarInfo>> modStructures = new java.util.TreeMap<>();
+
+        try {
+            // Get all loaded mod containers
+            var modList = net.neoforged.fml.ModList.get();
+            for (var modInfo : modList.getMods()) {
+                String modId = modInfo.getModId();
+                var modFile = modInfo.getOwningFile().getFile();
+
+                try {
+                    // First, scan structure_set files to get weights (discard empty weights for this helper)
+                    Map<String, StructureJarInfo> structureSetData = scanAllStructureSetFiles(modFile, modId, new HashMap<>());
+
+                    // Then, scan individual structure files and merge with structure_set data
+                    List<StructureJarInfo> structures = scanAllStructureFiles(modFile, modId, structureSetData);
+
+                    if (!structures.isEmpty()) {
+                        modStructures.put(modId, structures);
+                    }
+
+                } catch (Exception e) {
+                    MultiVillageSelector.LOGGER.warn("Failed to scan mod {}: {}", modId, e.getMessage());
+                }
+            }
+
+            // ALSO scan .connector directory for Fabric mods loaded via Sinytra Connector
+            scanConnectorDatapacks(server, modStructures);
+
+        } catch (Exception e) {
+            MultiVillageSelector.LOGGER.error("Error scanning mod JARs", e);
+        }
+
+        return modStructures;
+    }
+
+    /**
+     * Scan .connector/data directory for Fabric mods loaded via Sinytra Connector
+     * BCA (Cobblemon Additions) extracts its datapack here at runtime
+     */
+    private static void scanConnectorDatapacks(net.minecraft.server.MinecraftServer server, Map<String, List<StructureJarInfo>> modStructures) {
+        try {
+            Path gameDir = server.getServerDirectory();
+            Path connectorDir = gameDir.resolve("mods/.connector/data");
+
+            if (!java.nio.file.Files.exists(connectorDir)) {
+                return;
+            }
+
+            // Scan structure_set files first
+            Map<String, StructureJarInfo> connectorStructureSets = new HashMap<>();
+            java.nio.file.Files.walk(connectorDir)
+                .filter(path -> path.toString().contains("worldgen/structure_set"))
+                .filter(path -> path.toString().endsWith(".json"))
+                .forEach(path -> {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        String relativePath = connectorDir.relativize(path).toString();
+                        String[] parts = relativePath.split("/");
+
+                        if (parts.length >= 4) {
+                            String namespace = parts[0];
+                            String setName = path.getFileName().toString().replace(".json", "");
+                            String setId = namespace + ":" + setName;
+
+                            // Parse JSON using Gson
+                            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+                            if (root.has("structures")) {
+                                JsonArray structures = root.getAsJsonArray("structures");
+
+                                for (JsonElement element : structures) {
+                                    JsonObject structureEntry = element.getAsJsonObject();
+
+                                    if (structureEntry.has("structure")) {
+                                        String structureId = structureEntry.get("structure").getAsString();
+                                        Integer weight = structureEntry.has("weight") ?
+                                            structureEntry.get("weight").getAsInt() : null;
+
+                                        // Store - figure out mod from structure ID
+                                        String modId = structureId.contains(":") ? structureId.split(":")[0] : "unknown";
+                                        StructureJarInfo info = connectorStructureSets.computeIfAbsent(structureId,
+                                            k -> new StructureJarInfo(k, modId));
+                                        info.structureSet = setId;
+                                        info.weight = weight;
+                                        info.foundInStructureSet = true;
+                                    }
+                                }
+                            }
+                        }
+                    } catch (Exception e) {
+                        MultiVillageSelector.LOGGER.warn("[JAR-SCAN] Failed to parse connector structure_set: {}", e.getMessage());
+                    }
+                });
+
+            // Now scan structure files and merge
+            java.nio.file.Files.walk(connectorDir)
+                .filter(path -> path.toString().contains("worldgen/structure/"))
+                .filter(path -> !path.toString().contains("structure_set"))
+                .filter(path -> !path.toString().contains("/tags/"))
+                .filter(path -> path.toString().endsWith(".json"))
+                .forEach(path -> {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        String relativePath = connectorDir.relativize(path).toString();
+
+                        String[] parts = relativePath.split("/");
+                        if (parts.length >= 4) {
+                            String namespace = parts[0];
+                            StringBuilder structurePathBuilder = new StringBuilder();
+                            for (int i = 3; i < parts.length; i++) {
+                                if (i > 3) structurePathBuilder.append("/");
+                                structurePathBuilder.append(parts[i]);
+                            }
+                            String structurePath = structurePathBuilder.toString().replace(".json", "");
+                            String structureId = namespace + ":" + structurePath;
+
+                            // Get or create info
+                            StructureJarInfo info = connectorStructureSets.get(structureId);
+                            if (info == null) {
+                                String modId = namespace;
+                                info = new StructureJarInfo(structureId, modId);
+                            }
+
+                            // Extract biome tag
+                            if (content.contains("\"biomes\"")) {
+                                int biomeStart = content.indexOf("\"biomes\"");
+                                int colonPos = content.indexOf(":", biomeStart);
+                                if (colonPos > biomeStart) {
+                                    int biomeEnd = content.indexOf(",", colonPos);
+                                    if (biomeEnd == -1) biomeEnd = content.indexOf("}", colonPos);
+                                    if (biomeEnd > colonPos) {
+                                        String biomeInfo = content.substring(colonPos + 1, Math.min(biomeEnd, colonPos + 100));
+                                        biomeInfo = biomeInfo.replace("\n", " ").replace("\"", "").replace("[", "").replace("]", "").trim();
+                                        info.biomeTag = biomeInfo;
+                                    }
+                                }
+                            }
+
+                            info.foundInStructureFile = true;
+
+                            // Add to appropriate mod list
+                            modStructures.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
+                        }
+                    } catch (Exception e) {
+                        // Skip
+                    }
+                });
+
+        } catch (Exception e) {
+            MultiVillageSelector.LOGGER.warn("[JAR-SCAN] Error scanning .connector directory: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Scan a mod file for ALL structure_set definitions and extract weights using Gson
+     * Returns map of structure_id -> StructureJarInfo with weight and set info
+     * Also tracks empty weights in structureSetInfo map
+     */
+    private static Map<String, StructureJarInfo> scanAllStructureSetFiles(
+            net.neoforged.neoforgespi.locating.IModFile modFile,
+            String modId,
+            Map<String, StructureSetInfo> structureSetInfo) {
+        Map<String, StructureJarInfo> structureSetData = new HashMap<>();
+        final String finalModId = modId;
+
+        try {
+            var rootPath = modFile.findResource("data");
+            if (!java.nio.file.Files.exists(rootPath)) {
+                return structureSetData;
+            }
+
+            // Walk through data/*/worldgen/structure_set/*.json
+            java.nio.file.Files.walk(rootPath)
+                .filter(path -> path.toString().contains("worldgen/structure_set"))
+                .filter(path -> path.toString().endsWith(".json"))
+                .forEach(path -> {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        String relativePath = rootPath.relativize(path).toString();
+
+                        String[] parts = relativePath.split("/");
+                        if (parts.length >= 4) {
+                            String namespace = parts[0];
+                            String setName = path.getFileName().toString().replace(".json", "");
+                            String setId = namespace + ":" + setName;
+
+                            // Parse JSON using Gson
+                            JsonObject root = JsonParser.parseString(content).getAsJsonObject();
+                            if (root.has("structures")) {
+                                JsonArray structures = root.getAsJsonArray("structures");
+
+                                for (JsonElement element : structures) {
+                                    JsonObject structureEntry = element.getAsJsonObject();
+
+                                    if (structureEntry.has("structure")) {
+                                        String structureId = structureEntry.get("structure").getAsString();
+                                        Integer weight = structureEntry.has("weight") ?
+                                            structureEntry.get("weight").getAsInt() : null;
+
+                                        // Store structure_set info
+                                        StructureJarInfo info = structureSetData.computeIfAbsent(structureId,
+                                            k -> new StructureJarInfo(k, finalModId));
+                                        info.structureSet = setId;
+                                        info.weight = weight;
+                                        info.foundInStructureSet = true;
+                                    } else if (structureEntry.has("weight")) {
+                                        // Empty entry! Track empty weight for this structure_set
+                                        Integer emptyWeight = structureEntry.get("weight").getAsInt();
+                                        StructureSetInfo setInfo = structureSetInfo.computeIfAbsent(setId,
+                                            k -> new StructureSetInfo(k));
+                                        setInfo.emptyWeight = emptyWeight;
+                                    }
+                                }
+                            }
+
+                            // Extract spacing/separation from placement
+                            if (root.has("placement")) {
+                                JsonObject placement = root.getAsJsonObject("placement");
+                                StructureSetInfo setInfo = structureSetInfo.computeIfAbsent(setId,
+                                    k -> new StructureSetInfo(k));
+
+                                if (placement.has("spacing")) {
+                                    setInfo.spacing = placement.get("spacing").getAsInt();
+                                }
+                                if (placement.has("separation")) {
+                                    setInfo.separation = placement.get("separation").getAsInt();
+                                }
+                            }
+                        }
+
+                    } catch (Exception e) {
+                        // Skip files that can't be parsed - this is expected for some JSON files
+                        MultiVillageSelector.LOGGER.debug("Failed to parse structure_set file: {}", e.getMessage());
+                    }
+                });
+
+        } catch (Exception e) {
+            // Skip if can't access mod data directory - this is expected for some mods
+            MultiVillageSelector.LOGGER.debug("Failed to access mod data directory: {}", e.getMessage());
+        }
+
+        return structureSetData;
+    }
+
+    /**
+     * Scan a mod file for ALL individual structure definitions
+     * Merges with structure_set data if available
+     */
+    private static List<StructureJarInfo> scanAllStructureFiles(
+        net.neoforged.neoforgespi.locating.IModFile modFile,
+        String modId,
+        Map<String, StructureJarInfo> structureSetData
+    ) {
+        List<StructureJarInfo> structures = new ArrayList<>();
+
+        try {
+            var rootPath = modFile.findResource("data");
+            if (!java.nio.file.Files.exists(rootPath)) {
+                return structures;
+            }
+
+            // Walk through data/*/worldgen/structure/*.json (NOT structure_set, NOT tags)
+            java.nio.file.Files.walk(rootPath)
+                .filter(path -> path.toString().contains("worldgen/structure/"))
+                .filter(path -> !path.toString().contains("structure_set"))
+                .filter(path -> !path.toString().contains("/tags/"))  // Exclude tag files
+                .filter(path -> path.toString().endsWith(".json"))
+                .forEach(path -> {
+                    try {
+                        String content = java.nio.file.Files.readString(path);
+                        String relativePath = rootPath.relativize(path).toString();
+
+                        // Extract namespace and structure name from path
+                        // rootPath is already at "data/", so relativePath is like: bca/worldgen/structure/village/default_small.json
+                        String[] parts = relativePath.split("/");
+                        if (parts.length >= 4) {  // Need at least namespace/worldgen/structure/file.json
+                            String namespace = parts[0];  // First part is the namespace (no "data/" prefix)
+
+                            // Build structure path from parts (handle nested directories)
+                            // e.g. village/default_small or just village_plains
+                            // Start from parts[3] to skip namespace/worldgen/structure
+                            StringBuilder structurePathBuilder = new StringBuilder();
+                            for (int i = 3; i < parts.length; i++) {
+                                if (i > 3) structurePathBuilder.append("/");
+                                structurePathBuilder.append(parts[i]);
+                            }
+                            String structurePath = structurePathBuilder.toString().replace(".json", "");
+
+                            // Full structure ID
+                            String structureId = namespace + ":" + structurePath;
+
+                            // Check if we already have structure_set data for this structure
+                            StructureJarInfo info = structureSetData.get(structureId);
+                            if (info == null) {
+                                info = new StructureJarInfo(structureId, modId);
+                            }
+
+                            // Extract biome tag from JSON
+                            if (content.contains("\"biomes\"")) {
+                                int biomeStart = content.indexOf("\"biomes\"");
+                                int colonPos = content.indexOf(":", biomeStart);
+                                if (colonPos > biomeStart) {
+                                    int biomeEnd = content.indexOf(",", colonPos);
+                                    if (biomeEnd == -1) biomeEnd = content.indexOf("}", colonPos);
+                                    if (biomeEnd > colonPos) {
+                                        String biomeInfo = content.substring(colonPos + 1, Math.min(biomeEnd, colonPos + 100));
+                                        biomeInfo = biomeInfo.replace("\n", " ").replace("\"", "").replace("[", "").replace("]", "").trim();
+                                        info.biomeTag = biomeInfo;
+                                    }
+                                }
+                            }
+
+                            info.foundInStructureFile = true;
+                            structures.add(info);
+                        }
+
+                    } catch (Exception e) {
+                        // Skip files that can't be parsed - this is expected for some JSON files
+                        MultiVillageSelector.LOGGER.debug("Failed to parse structure file: {}", e.getMessage());
+                    }
+                });
+
+        } catch (Exception e) {
+            // Skip if can't access mod data directory - this is expected for some mods
+            MultiVillageSelector.LOGGER.debug("Failed to access mod data directory: {}", e.getMessage());
+        }
+
+        return structures;
+    }
+
+}

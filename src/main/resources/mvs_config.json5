@@ -1,92 +1,85 @@
 // ===========================================
-//  Multi Village Selector (MVS) - Default Config
+//  Multi Village Selector (MVS) v0.3.0
+//  Minimal Test Config
 // ===========================================
 //
-// 📖 Documentation:
-//    github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md
+// 🔥 This is a v0.3.0 test config using the new tag-based system
 //
-// 💡 RECOMMENDED: Run /mvs generate in-game to auto-generate a config
-//    This will detect your installed mods and create a ready-to-use config!
+// 📖 For complete documentation, see:
+//    https://github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md
 //
 // ===========================================
 
 {
   enabled: true,
-  debug_logging: false,
-  debug_cmd: false, // Enables /mvs debug commands (advanced users only)
-  show_launch_message: true,
+  show_first_launch_message: true,
 
-  // Vanilla villages to replace
-  replace_of: [
-    "minecraft:village_plains",
-    "minecraft:village_desert",
-    "minecraft:village_savanna",
-    "minecraft:village_snowy",
-    "minecraft:village_taiga",
+  // Block structure_sets entirely (executed first)
+  block_structure_sets: [
+    // Empty for now
   ],
 
-  // Prevent other villages from spawning (add your modded villages here)
-  prevent_spawn: [
-    // Example:
-    // "ctov:*/*",
-    // "towns_and_towers:village_*",
+  // Intercept these structure_sets (MVS takes control)
+  intercept_structure_sets: [
+    "minecraft:villages"
   ],
 
-  // Replacement villages by biome category
-  replace_with: {
-    // Example - replace with variety from your installed mods
-    // Use /mvs generate to auto-populate this!
+  // Structure pool - MVS selects from this list
+  // biomes controls spawn weights per biome (same pattern system as biome_frequency)
+  //
+  // Supports: Direct IDs ("minecraft:plains": 10), Tags ("#minecraft:is_plains": 10), Patterns ("minecraft:*": 5)
+  // Specificity: More specific patterns win, literal IDs beat tags, tie-breaker = higher weight
+  // TIP: Use /mvs generate to populate automatically
+  structure_pool: [
+    // Vanilla villages with explicit biome tags
+    { structure: "minecraft:village_plains",
+      biomes: {
+        "#minecraft:has_structure/village_plains": 1
+      } },
+    { structure: "minecraft:village_desert",
+      biomes: {
+        "#minecraft:has_structure/village_desert": 1
+      } },
+    { structure: "minecraft:village_savanna",
+      biomes: {
+        "#minecraft:has_structure/village_savanna": 1
+      } },
+    { structure: "minecraft:village_taiga",
+      biomes: {
+        "#minecraft:has_structure/village_taiga": 1
+      } },
+    { structure: "minecraft:village_snowy",
+      biomes: {
+        "#minecraft:has_structure/village_snowy": 1
+      } },
+  ],
 
-    plains: [
-      { structure: "minecraft:village_plains", weight: 10 },
-    ],
-    desert: [
-      { structure: "minecraft:village_desert", weight: 10 },
-    ],
-    savanna: [
-      { structure: "minecraft:village_savanna", weight: 10 },
-    ],
-    snowy: [
-      { structure: "minecraft:village_snowy", weight: 10 },
-    ],
-    taiga: [
-      { structure: "minecraft:village_taiga", weight: 10 },
-    ],
-    jungle: [],      // No vanilla jungle villages - add modded villages here
-    swamp: [],       // No vanilla swamp villages - add modded villages here
-    beach: [],       // No vanilla beach villages - add modded villages here
-    dark_forest: [], // No vanilla dark forest villages - add modded villages here
-    ocean: [],       // No villages in oceans by default
-    mushroom: [],    // No villages in mushroom biomes by default
-    cave: [],        // Cave biomes - keep empty (villages sample at surface level)
-
-
-    // ═══════════════════════════════════════════════════════════════
-    // Custom categories and fallback behavior:
-    //
-    // If a biome maps to an UNDEFINED category (not listed above),
-    // it will use the DEFAULT pool below.
-    //
-    // Example:
-    //   custom_category: [
-    //     { structure: "mod:custom_village", weight: 10 },
-    //   ],
-    //
-    // Then in biome_category_overrides:
-    //   "modname:weird_biome": "custom_category"
-    //
-    // Note: Empty list [] means "no villages", not defined means "use DEFAULT"
-    // ═══════════════════════════════════════════════════════════════
-
-    DEFAULT: [
-      { structure: "minecraft:village_plains", weight: 10 },
-    ],
+  // ## Biome-specific spawn frequency (0.0-1.0, applied before structure selection)
+  // Controls % chance of structure spawn attempt per biome
+  //
+  // Supports three formats:
+  // 1. Direct biome ID: "minecraft:plains": 1.0 (most specific, easiest for beginners)
+  // 2. Biome tags: "#minecraft:is_ocean": 0.2 (affects all matching biomes)
+  // 3. Patterns: "minecraft:*": 0.7, "#terralith:*": 0.85 (wildcards supported)
+  //
+  // Specificity scoring (more specific wins):
+  // - Base: 20, No #: +1, Literals before colon: +2, Literals after colon: +2, Each *: -5
+  // - Examples: "minecraft:plains" = 25, "#minecraft:is_plains" = 24, "#*craft*:*village*" = 4, "*:*" = -10
+  // - Tie-breaker: Higher frequency value wins
+  biome_frequency: {
+    // "*:*": 1.0,                      // Default: 100% spawn rate (implied if not set)
+    // "minecraft:warm_ocean": 0.5,     // Warm ocean specifically: 50% spawn rate
+    // "#minecraft:is_ocean": 0.2,      // All ocean biomes: 20% spawn rate
+    // "#terralith:*": 0.85,            // All Terralith biomes: 85% spawn rate
   },
 
-  // Override biome categorization (optional)
-  biome_category_overrides: {
-    // Example:
-    // "terralith:volcanic_peaks": "snowy",
-    // "biomesoplenty:lavender_field": "plains",
-  },
+  // Blacklist specific structures from non-intercepted sources
+  blacklisted_structures: [
+    // Empty for now
+  ],
+
+  // ## Debugging functionality
+  // Auto-enabled in dev environments (mod-dev directory, IDE, etc.)
+  debug_cmd: false,
+  debug_logging: false
 }

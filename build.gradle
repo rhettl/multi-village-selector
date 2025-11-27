@@ -1,6 +1,18 @@
 plugins {
     id 'java'
     id 'net.neoforged.moddev' version '2.0.36-beta'
+    id 'jacoco'
+}
+
+// Load local gradle properties if they exist (for dev overrides)
+// This must come after plugins {} block per Gradle requirements
+def localPropertiesFile = file('gradle.properties.local')
+if (localPropertiesFile.exists()) {
+    def localProperties = new Properties()
+    localPropertiesFile.withInputStream { localProperties.load(it) }
+    localProperties.each { key, value ->
+        project.ext.set(key, value)
+    }
 }
 
 version = '0.2.0'
@@ -14,6 +26,10 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 repositories {
     mavenCentral()
+    maven {
+        name = "Architectury"
+        url = "https://maven.architectury.dev/"
+    }
 }
 
 neoForge {
@@ -23,21 +39,40 @@ neoForge {
         client {
             client()
             programArgument '--mixin.config=multi_village_selector.mixins.json'
+            // Pass development flag to runtime (Java equivalent of NODE_ENV)
+            // Reads from gradle.properties.local if exists, otherwise gradle.properties
+            if (project.hasProperty('development')) {
+                systemProperty 'development', project.property('development')
+            }
         }
         server {
             server()
             programArgument '--mixin.config=multi_village_selector.mixins.json'
+            // Pass development flag to runtime
+            if (project.hasProperty('development')) {
+                systemProperty 'development', project.property('development')
+            }
         }
     }
 
     mods {
         multivillageselector {
             sourceSet sourceSets.main
+            sourceSet sourceSets.test  // Add test sources to mod
         }
+    }
+
+    // Enable unit tests to access Minecraft classes
+    unitTest {
+        enable()
     }
 }
 
 dependencies {
+    // Architectury API - cross-platform abstractions
+    // Using modImplementation for NeoForge Gradle
+    implementation 'dev.architectury:architectury-neoforge:13.0.6'
+
     // Mixin dependencies are provided by NeoForge
     compileOnly 'org.spongepowered:mixin:0.8.5'
     annotationProcessor 'org.spongepowered:mixin:0.8.5:processor'
@@ -57,4 +92,65 @@ dependencies {
 
 test {
     useJUnitPlatform()
+
+    // Ensure tests run in headless mode
+    systemProperty 'java.awt.headless', 'true'
+
+    // Provide more memory for tests
+    maxHeapSize = '2G'
+
+    // Show test output
+    testLogging {
+        events "passed", "skipped", "failed"
+        exceptionFormat "full"
+        showStandardStreams = false
+    }
+
+    // Fail fast in CI
+    if (System.getenv("CI") != null) {
+        failFast = true
+    }
+
+    // Generate coverage report after tests run
+    finalizedBy jacocoTestReport
 }
+
+// JaCoCo test coverage configuration
+jacoco {
+    toolVersion = "0.8.11"
+}
+
+jacocoTestReport {
+    dependsOn test
+
+    reports {
+        html.required = true
+        xml.required = true
+        csv.required = false
+    }
+
+    // Exclude generated/framework code and untestable code from coverage
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: [
+                '**/mixin/**',                      // Mixin classes (framework code)
+                '**/MultiVillageSelector.class',    // Main mod entry point (just registration)
+                '**/commands/**'                    // Commands require Minecraft server runtime
+            ])
+        }))
+    }
+}
+
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            limit {
+                minimum = 0.70  // Require 70% coverage
+            }
+        }
+    }
+}
+
+// Optional: Make check task verify coverage threshold
+// Uncomment to enforce coverage requirements in CI
+// check.dependsOn jacocoTestCoverageVerification

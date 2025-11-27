@@ -4,8 +4,8 @@
   "compatibilityLevel": "JAVA_21",
   "refmap": "multivillageselector.refmap.json",
   "mixins": [
-    "StructureStartMixin",
-    "ChunkGeneratorMixin"
+    "ChunkGeneratorMixin",
+    "ChunkGeneratorProfilerMixin"
   ],
   "injectors": {
     "defaultRequire": 1
