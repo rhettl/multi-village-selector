@@ -33,7 +33,7 @@ When you install multiple village mods (CTOV, Towns & Towers, BCA, etc.), they c
 
 That's it! Villages from all your mods will now spawn with equal representation.
 
-For detailed setup instructions, see the **[Getting Started Guide](docs/GettingStarted.md)**.
+For detailed setup instructions, see the **[Getting Started Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/GettingStarted.md)**.
 
 ## Configuration
 
@@ -58,7 +58,7 @@ MVS uses a JSON5 config file with three main sections:
 }
 ```
 
-See the **[Configuration Guide](docs/Configuration.md)** for complete documentation.
+See the **[Configuration Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md)** for complete documentation.
 
 ## Commands
 
@@ -69,7 +69,7 @@ See the **[Configuration Guide](docs/Configuration.md)** for complete documentat
 /mvs help                  # Show all commands
 ```
 
-See the **[Commands Reference](docs/Commands.md)** for full documentation.
+See the **[Commands Reference](https://github.com/RhettL/multi-village-selector/blob/master/docs/Commands.md)** for full documentation.
 
 ## Supported Mods
 
@@ -82,7 +82,7 @@ MVS works with mods that **add new village structures** to structure sets:
 - **Terralith**
 - And many more...
 
-Some mods require disabling their own village spawning. See **[Mod Compatibility](docs/ModCompatibility.md)** for setup instructions.
+Some mods require disabling their own village spawning. See **[Mod Compatibility](https://github.com/RhettL/multi-village-selector/blob/master/docs/ModCompatibility.md)** for setup instructions.
 
 ### What MVS Cannot Control
 
@@ -97,13 +97,13 @@ These mods will still apply their changes to whatever village MVS selects. This 
 
 | Guide | Description |
 |-------|-------------|
-| **[Getting Started](docs/GettingStarted.md)** | Installation and first-time setup |
-| **[Configuration](docs/Configuration.md)** | Complete config reference |
-| **[Mod Compatibility](docs/ModCompatibility.md)** | Per-mod setup instructions |
-| **[Commands](docs/Commands.md)** | In-game command reference |
-| **[Spacing Guide](docs/SpacingGuide.md)** | Controlling village density |
-| **[Troubleshooting](docs/Troubleshooting.md)** | Common issues and solutions |
-| **[Project Scope](docs/Scope.md)** | Design philosophy and limitations |
+| **[Getting Started](https://github.com/RhettL/multi-village-selector/blob/master/docs/GettingStarted.md)** | Installation and first-time setup |
+| **[Configuration](https://github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md)** | Complete config reference |
+| **[Mod Compatibility](https://github.com/RhettL/multi-village-selector/blob/master/docs/ModCompatibility.md)** | Per-mod setup instructions |
+| **[Commands](https://github.com/RhettL/multi-village-selector/blob/master/docs/Commands.md)** | In-game command reference |
+| **[Spacing Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/SpacingGuide.md)** | Controlling village density |
+| **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md)** | Common issues and solutions |
+| **[Project Scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md)** | Design philosophy and limitations |
 
 ## FAQ
 
@@ -111,10 +111,10 @@ These mods will still apply their changes to whatever village MVS selects. This 
 A: MVS works with vanilla, but you'll only see vanilla villages. Install village mods like CTOV or Towns & Towers for variety.
 
 **Q: Why aren't my villages spawning?**
-A: Check the [Troubleshooting Guide](docs/Troubleshooting.md). Common causes: mod conflicts, biome mismatches, or spacing settings.
+A: Check the [Troubleshooting Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md). Common causes: mod conflicts, biome mismatches, or spacing settings.
 
 **Q: Can MVS control other structures (temples, mansions)?**
-A: Currently MVS focuses on villages. See [Scope](docs/Scope.md) for design rationale.
+A: Currently MVS focuses on villages. See [Scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md) for design rationale.
 
 **Q: Fabric or NeoForge?**
 A: Both! MVS v0.3.0+ supports both platforms via Architectury.
