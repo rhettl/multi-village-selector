@@ -25,10 +25,11 @@ import java.util.List;
 public class StructureCommands {
 
     /**
-     * Handle /mvs structure list
+     * Handle /mvs structure list [full]
      * Lists all structures in the structure_pool (including empty entries)
+     * @param showFull if true, shows all structures without truncation
      */
-    public static int executeList(CommandContext<CommandSourceStack> context) {
+    public static int executeList(CommandContext<CommandSourceStack> context, boolean showFull) {
         CommandSourceStack source = context.getSource();
 
         try {
@@ -41,11 +42,9 @@ public class StructureCommands {
             }
 
             // Header
-            source.sendSuccess(() -> Component.literal("=== MVS Structure Pool ===")
+            String headerSuffix = showFull ? " (full)" : "";
+            source.sendSuccess(() -> Component.literal("=== MVS Structure Pool" + headerSuffix + " ===")
                 .withStyle(ChatFormatting.GOLD), false);
-            source.sendSuccess(() -> Component.literal(""), false);
-            source.sendSuccess(() -> Component.literal("Total: " + pool.size() + " entries")
-                .withStyle(ChatFormatting.AQUA), false);
             source.sendSuccess(() -> Component.literal(""), false);
 
             // Count empty vs non-empty
@@ -53,50 +52,76 @@ public class StructureCommands {
             long structureCount = pool.size() - emptyCount;
 
             source.sendSuccess(() -> Component.literal("Structures: " + structureCount)
-                .withStyle(ChatFormatting.GREEN), false);
-            source.sendSuccess(() -> Component.literal("Empty entries: " + emptyCount)
-                .withStyle(ChatFormatting.YELLOW), false);
+                .withStyle(ChatFormatting.GREEN)
+                .append(Component.literal(" | Empty entries: " + emptyCount)
+                    .withStyle(ChatFormatting.YELLOW)), false);
             source.sendSuccess(() -> Component.literal(""), false);
 
             // List structures
-            source.sendSuccess(() -> Component.literal("Structures:")
-                .withStyle(ChatFormatting.YELLOW), false);
-
+            int maxToShow = showFull ? Integer.MAX_VALUE : 15;
             int count = 0;
             for (var configured : pool) {
                 if (configured.isEmpty) {
                     continue; // Skip empty for now
                 }
 
+                if (count >= maxToShow) break;
+
                 String structureId = configured.structure.toString();
                 int tagCount = configured.biomes.size();
 
-                final String line = "  " + structureId + " (" + tagCount + " biome tags)";
-                source.sendSuccess(() -> Component.literal(line)
-                    .withStyle(ChatFormatting.GRAY), false);
+                final String finalStructureId = structureId;
+                final int finalTagCount = tagCount;
 
+                // Clickable structure ID
+                Component structureComponent = Component.literal("  " + finalStructureId)
+                    .withStyle(net.minecraft.network.chat.Style.EMPTY
+                        .withColor(ChatFormatting.WHITE)
+                        .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                            net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                            "/mvs structure biomes " + finalStructureId))
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                            net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                            Component.literal("Click to view biome rules"))))
+                    .append(Component.literal(" (" + finalTagCount + " biome tags)")
+                        .withStyle(ChatFormatting.GRAY));
+
+                source.sendSuccess(() -> structureComponent, false);
                 count++;
-                if (count >= 15) {
-                    final int remaining = (int)structureCount - count;
-                    if (remaining > 0) {
-                        source.sendSuccess(() -> Component.literal("  ... and " + remaining + " more")
-                            .withStyle(ChatFormatting.DARK_GRAY), false);
-                    }
-                    break;
-                }
             }
 
-            // List empty entries
-            if (emptyCount > 0) {
+            // Show "... and X more" link if truncated
+            if (!showFull && structureCount > maxToShow) {
+                final int remaining = (int)structureCount - maxToShow;
+
+                Component expandLink = Component.literal("  ... and " + remaining + " more")
+                    .withStyle(net.minecraft.network.chat.Style.EMPTY
+                        .withColor(ChatFormatting.AQUA)
+                        .withUnderlined(true)
+                        .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                            net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                            "/mvs structure list full"))
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                            net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                            Component.literal("Click to show all " + structureCount + " structures"))));
+
+                source.sendSuccess(() -> expandLink, false);
+            }
+
+            // List empty entries (only in full mode or if few)
+            if (emptyCount > 0 && (showFull || emptyCount <= 5)) {
                 source.sendSuccess(() -> Component.literal(""), false);
                 source.sendSuccess(() -> Component.literal("Empty Entries:")
                     .withStyle(ChatFormatting.YELLOW), false);
 
+                int emptyMaxToShow = showFull ? Integer.MAX_VALUE : 5;
                 int emptyShown = 0;
                 for (var configured : pool) {
                     if (!configured.isEmpty) {
                         continue;
                     }
+
+                    if (emptyShown >= emptyMaxToShow) break;
 
                     int tagCount = configured.biomes.size();
                     int weight = configured.biomes.values().stream().findFirst().orElse(0);
@@ -106,14 +131,12 @@ public class StructureCommands {
                         .withStyle(ChatFormatting.GRAY), false);
 
                     emptyShown++;
-                    if (emptyShown >= 10) {
-                        final int remaining = (int)emptyCount - emptyShown;
-                        if (remaining > 0) {
-                            source.sendSuccess(() -> Component.literal("  ... and " + remaining + " more")
-                                .withStyle(ChatFormatting.DARK_GRAY), false);
-                        }
-                        break;
-                    }
+                }
+
+                if (!showFull && emptyCount > emptyMaxToShow) {
+                    final int remaining = (int)emptyCount - emptyMaxToShow;
+                    source.sendSuccess(() -> Component.literal("  ... and " + remaining + " more empty entries")
+                        .withStyle(ChatFormatting.DARK_GRAY), false);
                 }
             }
 

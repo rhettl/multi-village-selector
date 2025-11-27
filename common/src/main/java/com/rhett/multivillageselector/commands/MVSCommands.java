@@ -62,6 +62,9 @@ public class MVSCommands {
             .then(Commands.literal("help")
                 .executes(MVSCommands::executeHelpCommand)
             )
+            .then(Commands.literal("info")
+                .executes(MVSCommands::executeInfoCommand)
+            )
             .then(Commands.literal("generate")
                 .executes(GenerateCommands::execute)
             )
@@ -105,7 +108,10 @@ public class MVSCommands {
             )
             .then(Commands.literal("structure")
                 .then(Commands.literal("list")
-                    .executes(StructureCommands::executeList)
+                    .executes(ctx -> StructureCommands.executeList(ctx, false))
+                    .then(Commands.literal("full")
+                        .executes(ctx -> StructureCommands.executeList(ctx, true))
+                    )
                 )
                 .then(Commands.literal("biomes")
                     .then(Commands.argument("structure", net.minecraft.commands.arguments.ResourceLocationArgument.id())
@@ -170,76 +176,211 @@ public class MVSCommands {
     private static int executeHelpCommand(CommandContext<CommandSourceStack> context) {
         CommandSourceStack source = context.getSource();
 
-        source.sendSuccess(() -> Component.literal("=== Multi Village Selector Commands ===")
+        source.sendSuccess(() -> Component.literal("=== Multi Village Selector v0.3.0 ===")
             .withStyle(ChatFormatting.GOLD), false);
+        source.sendSuccess(() -> Component.literal(""), false);
 
-        source.sendSuccess(() -> Component.literal(""), false); // Blank line
-
-        // /mvs biome
-        source.sendSuccess(() -> Component.literal("/mvs biome")
+        // /mvs info
+        source.sendSuccess(() -> Component.literal("/mvs info")
             .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Show your current biome, location, and category")
+            .append(Component.literal(" - Show MVS status and intercepted structure sets")
                 .withStyle(ChatFormatting.GRAY)), false);
-
-        // /mvs biome <id>
-        source.sendSuccess(() -> Component.literal("/mvs biome <biome_id>")
-            .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Look up category for a specific biome")
-                .withStyle(ChatFormatting.GRAY)), false);
-
-        source.sendSuccess(() -> Component.literal("  Example: ")
-            .withStyle(ChatFormatting.DARK_GRAY)
-            .append(Component.literal("/mvs biome minecraft:plains")
-                .withStyle(ChatFormatting.DARK_GRAY)), false);
-
-        source.sendSuccess(() -> Component.literal(""), false); // Blank line
-
-        // /mvs biome list
-        source.sendSuccess(() -> Component.literal("/mvs biome list")
-            .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Dump all registered biomes to file")
-                .withStyle(ChatFormatting.GRAY)), false);
-
-        source.sendSuccess(() -> Component.literal(""), false); // Blank line
-
-        // /mvs pools
-        source.sendSuccess(() -> Component.literal("/mvs pools")
-            .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - List all configured pool categories")
-                .withStyle(ChatFormatting.GRAY)), false);
-
-        // /mvs pools <category>
-        source.sendSuccess(() -> Component.literal("/mvs pools <category>")
-            .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Show structures in a pool with weights")
-                .withStyle(ChatFormatting.GRAY)), false);
-
-        source.sendSuccess(() -> Component.literal("  Example: ")
-            .withStyle(ChatFormatting.DARK_GRAY)
-            .append(Component.literal("/mvs pools plains")
-                .withStyle(ChatFormatting.DARK_GRAY)), false);
-
-        source.sendSuccess(() -> Component.literal(""), false); // Blank line
 
         // /mvs generate
         source.sendSuccess(() -> Component.literal("/mvs generate")
             .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Generate smart config from installed mods")
+            .append(Component.literal(" - Generate config from installed mods")
                 .withStyle(ChatFormatting.GRAY)), false);
 
-        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+        source.sendSuccess(() -> Component.literal(""), false);
 
-        // /mvs help
-        source.sendSuccess(() -> Component.literal("/mvs help")
+        // /mvs biome
+        source.sendSuccess(() -> Component.literal("/mvs biome")
             .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Show this help message")
+            .append(Component.literal(" - Show current biome info and tags")
                 .withStyle(ChatFormatting.GRAY)), false);
 
-        source.sendSuccess(() -> Component.literal(""), false); // Blank line
-        source.sendSuccess(() -> Component.literal("All commands require OP permission level 2")
-            .withStyle(ChatFormatting.YELLOW), false);
+        // /mvs biome tags <biome>
+        source.sendSuccess(() -> Component.literal("/mvs biome tags [biome]")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - List biome tags")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false);
+
+        // /mvs structure list
+        source.sendSuccess(() -> Component.literal("/mvs structure list [full]")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - List structures in pool")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs structure biomes
+        source.sendSuccess(() -> Component.literal("/mvs structure biomes <id>")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show biome rules for structure")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs structure test
+        source.sendSuccess(() -> Component.literal("/mvs structure test <structure> <biome>")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Test spawn eligibility")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs structure set
+        source.sendSuccess(() -> Component.literal("/mvs structure set <set_id>")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Inspect structure set")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false);
+
+        // Debug commands note
+        if (MVSConfig.debugCmd) {
+            source.sendSuccess(() -> Component.literal("/mvs debug")
+                .withStyle(ChatFormatting.AQUA)
+                .append(Component.literal(" - Debug commands (mod-scan, profiler)")
+                    .withStyle(ChatFormatting.GRAY)), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+        }
+
+        source.sendSuccess(() -> Component.literal("Tip: ")
+            .withStyle(ChatFormatting.GRAY)
+            .append(Component.literal("/mvs info")
+                .withStyle(ChatFormatting.YELLOW))
+            .append(Component.literal(" for quick status check")
+                .withStyle(ChatFormatting.GRAY)), false);
 
         return 1;
+    }
+
+    /**
+     * Handle /mvs info command
+     * Shows MVS status: blocked sets, intercepted sets with spacing/salt, link to structure list
+     */
+    private static int executeInfoCommand(CommandContext<CommandSourceStack> context) {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            var registryAccess = source.getServer().registryAccess();
+            var structureSetRegistry = registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+
+            source.sendSuccess(() -> Component.literal("=== Multi Village Selector v0.3.0 ===")
+                .withStyle(ChatFormatting.GOLD), false);
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Status
+            source.sendSuccess(() -> Component.literal("Status: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(MVSConfig.enabled ? "ENABLED" : "DISABLED")
+                    .withStyle(MVSConfig.enabled ? ChatFormatting.GREEN : ChatFormatting.RED)), false);
+
+            source.sendSuccess(() -> Component.literal("Pool Size: ")
+                .withStyle(ChatFormatting.GRAY)
+                .append(Component.literal(String.valueOf(MVSConfig.structurePool.size()))
+                    .withStyle(ChatFormatting.WHITE))
+                .append(Component.literal(" structures")
+                    .withStyle(ChatFormatting.GRAY)), false);
+
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Blocked structure sets
+            source.sendSuccess(() -> Component.literal("Blocked Structure Sets: ")
+                .withStyle(ChatFormatting.RED)
+                .append(Component.literal(String.valueOf(MVSConfig.blockStructureSets.size()))
+                    .withStyle(ChatFormatting.WHITE)), false);
+
+            if (!MVSConfig.blockStructureSets.isEmpty()) {
+                for (String setId : MVSConfig.blockStructureSets) {
+                    final String finalSetId = setId;
+                    source.sendSuccess(() -> Component.literal("  ⛔ " + finalSetId)
+                        .withStyle(ChatFormatting.DARK_RED), false);
+                }
+            }
+
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Intercepted structure sets with spacing/salt
+            source.sendSuccess(() -> Component.literal("Intercepted Structure Sets: ")
+                .withStyle(ChatFormatting.YELLOW)
+                .append(Component.literal(String.valueOf(MVSConfig.interceptStructureSets.size()))
+                    .withStyle(ChatFormatting.WHITE)), false);
+
+            for (String setId : MVSConfig.interceptStructureSets) {
+                final String finalSetId = setId;
+
+                // Get spacing and salt info
+                try {
+                    ResourceLocation setLocation = ResourceLocation.parse(setId);
+                    var structureSet = structureSetRegistry.get(setLocation);
+
+                    if (structureSet != null) {
+                        var placement = structureSet.placement();
+                        if (placement instanceof net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement randomSpread) {
+                            int spacing = randomSpread.spacing();
+                            int separation = randomSpread.separation();
+
+                            // Get salt via reflection
+                            int salt = 0;
+                            try {
+                                var saltField = net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement.class.getDeclaredField("salt");
+                                saltField.setAccessible(true);
+                                salt = (int) saltField.get(randomSpread);
+                            } catch (Exception ignored) {}
+
+                            final int finalSalt = salt;
+                            final int finalSpacing = spacing;
+                            final int finalSeparation = separation;
+
+                            // Clickable to run /mvs structure set <id>
+                            Component setComponent = Component.literal("  ⚡ " + finalSetId)
+                                .withStyle(net.minecraft.network.chat.Style.EMPTY
+                                    .withColor(ChatFormatting.GOLD)
+                                    .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                                        "/mvs structure set " + finalSetId))
+                                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                                        Component.literal("Click for details"))));
+
+                            source.sendSuccess(() -> setComponent, false);
+                            source.sendSuccess(() -> Component.literal("      spacing: " + finalSpacing + ", separation: " + finalSeparation + ", salt: " + finalSalt)
+                                .withStyle(ChatFormatting.GRAY), false);
+                        } else {
+                            source.sendSuccess(() -> Component.literal("  ⚡ " + finalSetId)
+                                .withStyle(ChatFormatting.GOLD), false);
+                        }
+                    } else {
+                        source.sendSuccess(() -> Component.literal("  ⚠ " + finalSetId + " (not found)")
+                            .withStyle(ChatFormatting.DARK_GRAY), false);
+                    }
+                } catch (Exception e) {
+                    source.sendSuccess(() -> Component.literal("  ⚡ " + finalSetId)
+                        .withStyle(ChatFormatting.GOLD), false);
+                }
+            }
+
+            source.sendSuccess(() -> Component.literal(""), false);
+
+            // Link to structure list
+            Component structureListLink = Component.literal("→ View Structure Pool")
+                .withStyle(net.minecraft.network.chat.Style.EMPTY
+                    .withColor(ChatFormatting.AQUA)
+                    .withUnderlined(true)
+                    .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                        net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
+                        "/mvs structure list"))
+                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                        Component.literal("Run /mvs structure list"))));
+
+            source.sendSuccess(() -> structureListLink, false);
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            MVSCommon.LOGGER.error("Error in /mvs info command", e);
+            return 0;
+        }
     }
 
     // ========== v0.3.0 COMMENTED OUT - TODO: Rewrite biome/pools commands for tag-based system ==========
