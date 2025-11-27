@@ -42,6 +42,15 @@ How often villages spawn at all in a biome. Reduce spawn rate in oceans, increas
 ### Spacing and Separation
 Village grid spacing is controlled at the structure_set level via datapacks, not by MVS. See [Spacing Guide](SpacingGuide.md) for how to adjust this.
 
+### Jigsaw Piece Replacement
+MVS intercepts **structure selection** (which village type spawns), not **jigsaw piece assembly** (which buildings appear inside villages).
+
+Mods that replace individual village pieces work at a different level:
+- **Better Villages** - Replaces vanilla village jigsaw pieces with enhanced versions
+- **Luki's Grand Capitals** - Replaces/extends vanilla village pieces
+
+These mods will still apply their changes to whatever village MVS selects. This is usually fine - MVS picks the village type, then the jigsaw replacer modifies its buildings. However, MVS cannot control *which* piece replacements are used.
+
 ### Structure Content
 What's inside villages (buildings, loot, villagers) is controlled by the village mods themselves.
 

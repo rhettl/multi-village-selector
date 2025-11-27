@@ -15,13 +15,14 @@ This guide explains how to configure MVS to work with popular village mods.
 
 ## Quick Reference
 
-| Mod | Disable Mod Spawning? | Notes |
-|-----|----------------------|-------|
-| CTOV | Yes (config) | Disable village generation in ctov-common.toml |
-| Better Village | Yes (config) | **Critical:** Disable `enabled_custom_config` |
-| BCA | No | MVS intercepts automatically |
-| Towns & Towers | No | Works out of the box |
-| Terralith | No | Works out of the box |
+| Mod | Type | Disable Spawning? | Notes |
+|-----|------|------------------|-------|
+| CTOV | Structure adder | Yes (config) | Disable village generation in ctov-common.toml |
+| Better Village | Jigsaw replacer | Disable spacing only | **Critical:** Disable `enabled_custom_config` |
+| Luki's Grand Capitals | Jigsaw replacer | No | Works alongside MVS automatically |
+| BCA | Structure adder | No | MVS intercepts automatically |
+| Towns & Towers | Structure adder | No | Works out of the box |
+| Terralith | Structure adder | No | Works out of the box |
 
 ## CTOV (ChoiceTheorem's Overhauled Village)
 
@@ -67,7 +68,16 @@ structure_pool: [
 
 ## Better Village
 
-### Critical: Disable Custom Config
+### How Better Village Works
+
+Better Village is a **jigsaw piece replacer**, not a structure adder. It replaces individual buildings inside vanilla villages with enhanced versions. MVS cannot control which Better Village pieces are used - it operates at a different level.
+
+**What this means:**
+- MVS selects *which village type* spawns (plains, desert, etc.)
+- Better Village then modifies *what buildings* appear in that village
+- Both work together without conflict
+
+### Critical: Disable Custom Spacing Config
 
 **This is required!** Better Village overrides village spacing at runtime.
 
@@ -89,9 +99,11 @@ Better Village structures use vanilla names, so they're already included if you 
 ```json5
 structure_pool: [
   { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
-  // Better Village enhances these vanilla villages
+  // Better Village automatically enhances these vanilla villages
 ]
 ```
+
+**Note:** You don't need to add Better Village to your `structure_pool` - it enhances whatever vanilla villages MVS selects.
 
 ## BCA (Cobblemon Additions)
 

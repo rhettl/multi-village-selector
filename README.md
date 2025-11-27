@@ -73,17 +73,25 @@ See the **[Commands Reference](docs/Commands.md)** for full documentation.
 
 ## Supported Mods
 
-MVS works with any mod that adds village structures through Minecraft's jigsaw system:
+MVS works with mods that **add new village structures** to structure sets:
 
 - **Vanilla Minecraft** - All 5 village types
 - **CTOV** (ChoiceTheorem's Overhauled Village)
 - **Towns & Towers**
 - **Cobblemon Additions (BCA)**
 - **Terralith**
-- **Better Villages**
 - And many more...
 
 Some mods require disabling their own village spawning. See **[Mod Compatibility](docs/ModCompatibility.md)** for setup instructions.
+
+### What MVS Cannot Control
+
+MVS intercepts **structure selection**, not **jigsaw piece assembly**. Mods that replace individual village pieces (buildings, paths) rather than adding whole village structures work differently:
+
+- **Better Villages** - Replaces vanilla village jigsaw pieces
+- **Luki's Grand Capitals** - Replaces/extends vanilla village pieces
+
+These mods will still apply their changes to whatever village MVS selects. This is usually fine - MVS picks which village type spawns, then the jigsaw replacer modifies its buildings.
 
 ## Documentation
 
