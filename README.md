@@ -6,7 +6,7 @@ Multi Village Selector gives you control over village spawning in Minecraft. Ins
 
 ## The Problem MVS Solves
 
-When you install multiple village mods (CTOV, Towns & Towers, BCA, etc.), they compete for the same spawn locations. Some mods override others, some never spawn, and you have no control over the mix. MVS fixes this by:
+When you install multiple village mods (Cobblemon Additions, ChoiceTheorem's Overhauled Village, Towns & Towers, etc.), they compete for the same spawn locations. Some mods override others, some never spawn, and you have no control over the mix. MVS fixes this by:
 
 - **Intercepting** vanilla village spawns before any mod processes them
 - **Selecting** from all configured village structures using weighted random selection
@@ -25,12 +25,13 @@ When you install multiple village mods (CTOV, Towns & Towers, BCA, etc.), they c
 ## Quick Start
 
 1. **Install** MVS and Architectury API in your `mods/` folder
-2. **Launch** Minecraft once to generate the default config
+2. **Launch** Minecraft and load a world
 3. **Run** `/mvs generate` in-game to scan your installed mods
-4. **Review** the generated config at `config/multivillageselector.json5`
-5. **Restart** Minecraft to apply changes
+4. **Review** the generated config at `local/mvs/multivillageselector.json5`
+5. **Move** the config to `config/multivillageselector.json5`
+6. **Restart** Minecraft to apply changes
 
-That's it! Villages from all your mods will now spawn with equal representation.
+That's it! Villages from all your mods will now spawn with weighted representation -- but be sure to look over the weights, the generator makes some guesses and isn't perfect.
 
 For detailed setup instructions, see the **[Getting Started Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/GettingStarted.md)**.
 
@@ -40,19 +41,19 @@ MVS uses a JSON5 config file with three main sections:
 
 ```json5
 {
-  // Which structure sets MVS controls (usually just villages)
+  // Which structure sets MVS controls (usually just minecraft:villages)
   intercept_structure_sets: ["minecraft:villages"],
 
   // Your village structures with per-biome weights
   structure_pool: [
-    { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
-    { structure: "ctov:village_plains", biomes: {"#minecraft:is_plains": 10} },
+    { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 25} },
+    { structure: "bca:village/default_mid", biomes: {"#bca:villages": 29} },  // Cobblemon Additions
     // ... more structures
   ],
 
-  // Optional: Control spawn frequency per biome
+  // Optional: Reduce spawn rate in specific biomes
   biome_frequency: {
-    "#minecraft:is_ocean": 0.3,  // 30% spawn rate in oceans
+    "#minecraft:is_ocean": 0.3,  // Only 30% of ocean spawn attempts proceed
   }
 }
 ```
@@ -65,6 +66,8 @@ See the **[Configuration Guide](https://github.com/RhettL/multi-village-selector
 /mvs generate              # Scan mods and generate config
 /mvs biome                 # Show current biome info
 /mvs structure biomes <id> # Show biome rules for a structure
+/mvs structure list        # list structures in structure pool
+/mvs structure nearby      # list structures next to player   
 /mvs help                  # Show all commands
 ```
 
@@ -75,9 +78,9 @@ See the **[Commands Reference](https://github.com/RhettL/multi-village-selector/
 MVS works with mods that **add new village structures** to structure sets:
 
 - **Vanilla Minecraft** - All 5 village types
-- **CTOV** (ChoiceTheorem's Overhauled Village)
+- **Cobblemon Additions (BCA)** - Cobblemon-themed villages
+- **ChoiceTheorem's Overhauled Village (CTOV)** 
 - **Towns & Towers**
-- **Cobblemon Additions (BCA)**
 - **Terralith**
 - And many more...
 
@@ -90,7 +93,7 @@ MVS intercepts **structure selection**, not **jigsaw piece assembly**. Mods that
 - **Better Villages** - Replaces vanilla village jigsaw pieces
 - **Luki's Grand Capitals** - Replaces/extends vanilla village pieces
 
-These mods will still apply their changes to whatever village MVS selects. This is usually fine - MVS picks which village type spawns, then the jigsaw replacer modifies its buildings.
+These mods will still apply their changes to whatever village MVS selects, usually the vanilla villages. This is usually fine if you only use one - MVS picks which village type spawns, then the jigsaw replacer modifies its buildings. But MVS doesn't help you with fighting between those type of mods.
 
 ## Documentation
 
@@ -106,17 +109,17 @@ These mods will still apply their changes to whatever village MVS selects. This 
 
 ## FAQ
 
-**Q: Do I need village mods installed?**
-A: MVS works with vanilla, but you'll only see vanilla villages. Install village mods like CTOV or Towns & Towers for variety.
+#### Do I need village mods installed?
+MVS works with vanilla, but you'll only see vanilla villages. Install village mods like [Cobblemon Additions](https://modrinth.com/mod/cobblemon-additions) or [Towns & Towers](https://modrinth.com/mod/towns-and-towers) for variety.
 
-**Q: Why aren't my villages spawning?**
-A: Check the [Troubleshooting Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md). Common causes: mod conflicts, biome mismatches, or spacing settings.
+#### Why aren't my villages spawning?
+Check the [Troubleshooting Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md). Common causes: mod conflicts, biome mismatches, or spacing settings.
 
-**Q: Can MVS control other structures (temples, mansions)?**
-A: Currently MVS focuses on villages. See [Scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md) for design rationale.
+#### Can MVS control other structures (temples, mansions)?
+Currently MVS focuses on villages. See [Scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md) for design rationale. You can add any structure to MVS's pool, but it's designed for only one structure pool.
 
-**Q: Fabric or NeoForge?**
-A: Both! MVS v0.3.0+ supports both platforms via Architectury.
+#### Fabric or NeoForge?
+Both! MVS v0.3.0+ supports both platforms via Architectury.
 
 ## Contributing
 
@@ -144,3 +147,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 - [Architectury](https://architectury.dev/) for multi-loader support
 - [json5-java](https://github.com/marhali/json5-java) for config parsing
 - [NeoForge](https://neoforged.net/) and [Fabric](https://fabricmc.net/) teams
+- Claude Code (Sonnet 4.5) for doing most of the work coding this at RhettL's Direction.
