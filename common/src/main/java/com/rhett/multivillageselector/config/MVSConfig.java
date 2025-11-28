@@ -236,14 +236,6 @@ public class MVSConfig {
      *   "mod:exact_name" → "mod:exact_name"
      */
     /**
-     * Checks if a structure name matches a wildcard pattern.
-     * @deprecated Use PatternMatcher.matches() directly for better testability
-     */
-    public static boolean matchesPattern(String structureName, String pattern) {
-        return PatternMatcher.matches(structureName, pattern);
-    }
-
-    /**
      * v0.3.0: Discovers structures and builds the final ConfiguredStructure pool.
      * Phase 1: Expand patterns against registry
      * Phase 2: Get biome tags from structures
