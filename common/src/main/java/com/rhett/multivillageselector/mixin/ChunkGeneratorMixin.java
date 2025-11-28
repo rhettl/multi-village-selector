@@ -24,10 +24,8 @@ import org.spongepowered.asm.mixin.injection.Redirect;
 import java.util.List;
 
 /**
- * NeoForge-specific mixin for structure interception.
+ * Mixin for structure interception (shared by NeoForge and Fabric).
  * Thin wrapper that delegates to platform-agnostic StructureInterceptor.
- *
- * For Fabric port: Copy this file, adjust mixin syntax, keep delegation logic.
  */
 @Mixin(ChunkGenerator.class)
 public abstract class ChunkGeneratorMixin {
@@ -59,8 +57,7 @@ public abstract class ChunkGeneratorMixin {
             value = "INVOKE",
             target = "Ljava/util/List;forEach(Ljava/util/function/Consumer;)V",
             remap = false
-        ),
-        remap = false
+        )
     )
     private void redirectStructureSetForEach(
             List<?> structureSetList,
@@ -94,8 +91,7 @@ public abstract class ChunkGeneratorMixin {
     @Inject(
         method = "tryGenerateStructure",
         at = @At("HEAD"),
-        cancellable = true,
-        remap = false
+        cancellable = true
     )
     private void onTryGenerateStructure(
             net.minecraft.world.level.levelgen.structure.StructureSet.StructureSelectionEntry entry,
@@ -148,8 +144,7 @@ public abstract class ChunkGeneratorMixin {
         at = @At(
             value = "INVOKE",
             target = "Lnet/minecraft/world/level/levelgen/structure/Structure;biomes()Lnet/minecraft/core/HolderSet;"
-        ),
-        remap = false
+        )
     )
     private net.minecraft.core.HolderSet<net.minecraft.world.level.biome.Biome> redirectStructureBiomes(
             Structure structure,
