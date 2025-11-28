@@ -14,8 +14,7 @@ When you install multiple village mods (CTOV, Towns & Towers, BCA, etc.), they c
 
 ## Download
 
-<!-- TODO: Add Modrinth link after v0.3.0 release -->
-- **Modrinth**: Coming soon with v0.3.0 release
+- **Modrinth**: [Multi Village Selector](https://modrinth.com/mod/multi-village-selector)
 - **GitHub Releases**: [Latest Release](https://github.com/RhettL/multi-village-selector/releases)
 
 **Requirements:**
