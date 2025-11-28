@@ -44,14 +44,20 @@ jobs:
     - name: Upload NeoForge JAR
       uses: actions/upload-artifact@v4
       with:
-        name: mvs-neoforge
-        path: neoforge/build/libs/*.jar
+        name: multivillageselector-neoforge
+        path: |
+          neoforge/build/libs/multivillageselector-neoforge-*.jar
+          !neoforge/build/libs/*-dev*.jar
+          !neoforge/build/libs/*-sources.jar
 
     - name: Upload Fabric JAR
       uses: actions/upload-artifact@v4
       with:
-        name: mvs-fabric
-        path: fabric/build/libs/*.jar
+        name: multivillageselector-fabric
+        path: |
+          fabric/build/libs/multivillageselector-fabric-*.jar
+          !fabric/build/libs/*-dev*.jar
+          !fabric/build/libs/*-sources.jar
 
     - name: Upload test report
       uses: actions/upload-artifact@v4

@@ -48,8 +48,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            neoforge/build/libs/*.jar
-            fabric/build/libs/*.jar
+            neoforge/build/libs/multivillageselector-neoforge-${{ steps.check_version.outputs.version }}.jar
+            fabric/build/libs/multivillageselector-fabric-${{ steps.check_version.outputs.version }}.jar
           generate_release_notes: true
           prerelease: ${{ steps.check_version.outputs.prerelease }}
           draft: false
