@@ -577,31 +577,23 @@ public class MVSCommands {
             }
         }
 
-        // block_structure_sets section (executed first)
-        lines.add("  // Structure sets to block entirely (prevents spawning)");
+        // block_structure_sets section - block other *:villages sets to prevent duplicate grids
+        // Their structures are still in the pool, spawned via minecraft:villages grid
+        lines.add("  // Structure sets to block (their structures spawn via minecraft:villages instead)");
         lines.add("  block_structure_sets: [");
         lines.add("    // Example: \"minecraft:pillager_outposts\",");
-        lines.add("  ],");
-        lines.add("");
-
-        // intercept_structure_sets section (executed second)
-        lines.add("  // Structure sets to intercept (MVS takes control)");
-        lines.add("  intercept_structure_sets: [");
-        lines.add("    \"" + MINECRAFT_VILLAGES_SET + "\",");
-
-        // Add other *:villages structure_sets
         for (String setId : structuresBySet.keySet()) {
             if (!setId.equals(MINECRAFT_VILLAGES_SET) && setId.endsWith(":villages")) {
                 lines.add("    \"" + setId + "\",");
             }
         }
+        lines.add("  ],");
+        lines.add("");
 
-        // Remove trailing comma
-        if (!lines.isEmpty() && lines.get(lines.size() - 1).endsWith(",")) {
-            String last = lines.remove(lines.size() - 1);
-            lines.add(last.substring(0, last.length() - 1));
-        }
-
+        // intercept_structure_sets section - only minecraft:villages
+        lines.add("  // Structure sets to intercept (MVS controls structure selection)");
+        lines.add("  intercept_structure_sets: [");
+        lines.add("    \"" + MINECRAFT_VILLAGES_SET + "\",");
         lines.add("  ],");
         lines.add("");
 
