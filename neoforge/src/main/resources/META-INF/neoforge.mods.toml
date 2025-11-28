@@ -17,7 +17,7 @@ Brings village variety to your world by intelligently replacing vanilla village 
 '''
 
 [[mixins]]
-config = "multi_village_selector.mixins.json"
+config = "multi_village_selector-neoforge.mixins.json"
 
 [[dependencies.multivillageselector]]
 modId = "neoforge"

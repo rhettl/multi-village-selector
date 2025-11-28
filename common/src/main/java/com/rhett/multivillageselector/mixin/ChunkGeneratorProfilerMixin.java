@@ -26,8 +26,7 @@ public abstract class ChunkGeneratorProfilerMixin {
      */
     @Inject(
         method = "createStructures",
-        at = @At("HEAD"),
-        remap = false
+        at = @At("HEAD")
     )
     private void onCreateStructuresStart(
             net.minecraft.core.RegistryAccess registryAccess,
@@ -45,8 +44,7 @@ public abstract class ChunkGeneratorProfilerMixin {
      */
     @Inject(
         method = "createStructures",
-        at = @At("RETURN"),
-        remap = false
+        at = @At("RETURN")
     )
     private void onCreateStructuresEnd(
             net.minecraft.core.RegistryAccess registryAccess,
