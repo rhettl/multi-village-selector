@@ -18,6 +18,7 @@ Village density is controlled by three parameters in Minecraft's `structure_set`
 |-----------|-------------|--------|
 | `spacing` | Maximum distance between villages (in chunks) | Higher = fewer villages |
 | `separation` | Minimum distance between villages (in chunks) | Higher = more spread out |
+| `spread_type` | Position distribution within cell | `linear` (default) or `triangular` |
 | `salt` | Random seed modifier | Changes village grid position |
 
 **How it works:**
@@ -42,6 +43,34 @@ Minecraft divides the world into a grid of cells, each `spacing` chunks wide. Wi
 ```
 
 The separation value removes chunks from the **positive X and Z edges** of each cell, leaving a (spacing - separation) x (spacing - separation) area where villages can spawn.
+
+### Spread Type
+
+The `spread_type` parameter controls how the random position is chosen within the spawn area:
+
+**Linear (default):**
+- Uniform distribution - every position has equal probability
+- Village could spawn anywhere in the valid area
+- Used by vanilla Minecraft for villages
+
+**Triangular:**
+- Weighted toward the center of the spawn area
+- Villages more likely to spawn near the middle of each cell
+- Reduces chance of two villages spawning near shared cell boundaries
+- Used by BCA (Cobblemon Additions)
+
+```
+Linear:                          Triangular:
++------------------+             +------------------+
+|██████████████████|             |      ██████      |
+|██████████████████|             |    ██████████    |
+|██████████████████|             |  ██████████████  |
+|██████████████████|             |██████████████████|
++------------------+             +------------------+
+ equal chance everywhere          peaks in center
+```
+
+In practice, triangular spread produces more consistent spacing between villages across the world.
 
 ## Default Values
 
