@@ -71,13 +71,13 @@ your_world/datapacks/mvs_spacing/
 ```json
 {
   "pack": {
-    "pack_format": 34,
+    "pack_format": 48,
     "description": "MVS Village Spacing Override"
   }
 }
 ```
 
-**Note:** `pack_format` 34 is for Minecraft 1.21.1. Check [Minecraft Wiki](https://minecraft.wiki/w/Data_pack#Pack_format) for other versions.
+**Note:** `pack_format` 48 is for Minecraft 1.21.1. Check [Minecraft Wiki](https://minecraft.wiki/w/Data_pack#Pack_format) for other versions.
 
 ### Step 3: Create villages.json
 
@@ -229,8 +229,10 @@ If villages aren't spawning at expected density, check if another mod is overrid
 
 **Download ready-made datapacks:**
 
-<!-- TODO: Add download links after release -->
-Coming soon: Pre-made datapacks for common spacing configurations.
+- [village-spacing.zip](datapacks/village-spacing.zip) - Vanilla defaults (spacing=34, separation=8)
+- [bca-villages.zip](datapacks/bca-villages.zip) - BCA 4.1.4 defaults (spacing=34, separation=10, triangular spread, 8 BCA villages)
+
+Extract to your world's `datapacks/` folder, then edit `data/minecraft/worldgen/structure_set/villages.json` to customize.
 
 **Common configurations:**
 
