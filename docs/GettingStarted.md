@@ -9,8 +9,8 @@ This guide walks you through installing MVS and getting your first config workin
 - [First Launch](#first-launch)
 - [Generate Your Config](#generate-your-config)
 - [Configure Other Mods](#configure-other-mods)
-- [Verify It's Working](#verify-its-working)
 - [Next Steps](#next-steps)
+- [Common First-Time Issues](#common-first-time-issues)
 
 ## Requirements
 
@@ -19,17 +19,18 @@ This guide walks you through installing MVS and getting your first config workin
 - **Architectury API**: Required for both platforms
 
 **Recommended village mods** (install any you like):
+- Cobblemon Additions (BCA)
 - CTOV (ChoiceTheorem's Overhauled Village)
 - Towns & Towers
-- Cobblemon Additions (BCA)
 - Terralith
-- Better Villages
+
+(No reason for these specific mods, I just like 'em)
 
 ## Installation
 
 ### NeoForge
 
-1. Download from [Modrinth](<!-- TODO: Add link -->) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
+1. Download from [Modrinth](https://modrinth.com/mod/multi-village-selector) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
    - `multivillageselector-neoforge-0.3.0.jar`
    - `architectury-api` (NeoForge version)
 
@@ -37,7 +38,7 @@ This guide walks you through installing MVS and getting your first config workin
 
 ### Fabric
 
-1. Download from [Modrinth](<!-- TODO: Add link -->) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
+1. Download from [Modrinth](https://modrinth.com/mod/multi-village-selector) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
    - `multivillageselector-fabric-0.3.0.jar`
    - `architectury-api` (Fabric version)
    - `fabric-api` (if not already installed)
@@ -50,20 +51,36 @@ This guide walks you through installing MVS and getting your first config workin
 2. **Create a new world** or load an existing one
 3. MVS creates a default config at `config/multivillageselector.json5`
 
-The default config is minimal:
+The default config is meant to be vanilla-like. But you can make a more useful one in-game.
 
 ```json5
 {
   enabled: true,
-  debug_logging: false,
-  intercept_structure_sets: [],  // Empty - MVS not active yet
-  structure_pool: [],
+
+  // MVS takes control of these structure_sets
+  intercept_structure_sets: [ "minecraft:villages" ],
+
+  // Structures MVS can spawn
+  structure_pool: [
+    { structure: "minecraft:village_plains",
+      biomes: { "#minecraft:has_structure/village_plains": 1 } },
+    { structure: "minecraft:village_desert",
+      biomes: { "#minecraft:has_structure/village_desert": 1 } },
+    { structure: "minecraft:village_savanna",
+      biomes: { "#minecraft:has_structure/village_savanna": 1 } },
+    { structure: "minecraft:village_taiga",
+      biomes: { "#minecraft:has_structure/village_taiga": 1 } },
+    { structure: "minecraft:village_snowy",
+      biomes: { "#minecraft:has_structure/village_snowy": 1 } },
+  ],
 }
 ```
 
 ## Generate Your Config
 
-The `/mvs generate` command scans all your installed mods and creates a complete config:
+> **Note:** MVS commands require operator permissions. In single player, enable cheats when creating the world or open to LAN with cheats enabled.
+
+In-game, the `/mvs generate` command scans all your installed mods and creates a complete config base:
 
 1. **In-game**, open chat and run:
    ```
@@ -72,15 +89,12 @@ The `/mvs generate` command scans all your installed mods and creates a complete
 
 2. MVS scans your mods and outputs a new config to:
    ```
-   local/mvs/multivillageselector.json5
+   <minecraft-instance>/local/mvs/multivillageselector.json5
    ```
 
-3. **Review the generated file** - it contains all detected village structures with normalized weights
+3. **Review the generated file** - it contains all detected village structures with normalized weights. It makes some **guesses** and may miss some structures or be wrong about some weights -- **Please review before using.**
 
-4. **Copy to your config folder**:
-   ```
-   cp local/mvs/multivillageselector.json5 config/multivillageselector.json5
-   ```
+4. **Move it to your config folder** - located at `<minecraft-instance>/config`
 
 5. **Restart Minecraft** to apply the new config
 
@@ -88,89 +102,15 @@ The `/mvs generate` command scans all your installed mods and creates a complete
 
 - Scans all loaded mods for village structures
 - Detects structure_sets that contain villages
-- Normalizes weights so each mod gets equal representation
-- Preserves each mod's internal weight ratios
+- Normalizes weights so each mod is comparable, roughly
+- Preserves each mod's internal weight ratios (as much as possible)
 - Generates biome rules from vanilla registry data
 
 ## Configure Other Mods
 
-Most village mods need their own spawning disabled so MVS can control everything.
+Some village mods need their own spawning disabled so MVS can take full control. This varies by mod - some work automatically, others need config changes, and a few override spacing settings at runtime.
 
-### CTOV (ChoiceTheorem's Overhauled Village)
-
-Edit `config/ctov-common.toml`:
-
-```toml
-[structures]
-    generatesmallVillage = false
-    generatemediumVillage = false
-    generatelargeVillage = false
-```
-
-### Better Village
-
-Edit `config/bettervillage_1.properties`:
-
-```properties
-# CRITICAL: Better Village overrides spacing settings at runtime
-# Must disable to let MVS control village density
-boolean.villages.enabled_custom_config=false
-```
-
-### Cobblemon Additions (BCA)
-
-BCA uses a datapack override - MVS handles this automatically when you run `/mvs generate` with BCA installed. No manual config needed.
-
-### Other Mods
-
-See [Mod Compatibility](ModCompatibility.md) for complete per-mod instructions.
-
-## Verify It's Working
-
-### Check Current Biome
-
-Stand in any biome and run:
-
-```
-/mvs biome
-```
-
-Output shows:
-- Your coordinates
-- Current biome ID
-- Biome tags
-- Which structures can spawn here
-
-### Check Structure Rules
-
-For any structure, run:
-
-```
-/mvs structure biomes minecraft:village_plains
-```
-
-Output shows:
-- Which biomes this structure can spawn in
-- Weight in each biome
-- Source (MVS config or vanilla registry)
-
-### Enable Debug Logging
-
-For detailed spawn information, edit your config:
-
-```json5
-{
-  debug_logging: true,
-  // ... rest of config
-}
-```
-
-Then check `logs/latest.log` for entries like:
-
-```
-[MVS] Generation SUCCEEDED: minecraft:village_plains at chunk [12, -5]
-[MVS] Generation FAILED: minecraft:village_desert - biome mismatch
-```
+For specific instructions per mod, see the [Mod Compatibility Guide](ModCompatibility.md).
 
 ## Next Steps
 
@@ -192,7 +132,7 @@ Now that MVS is working:
 
 - Run `/mvs generate` to detect installed mods
 - Copy generated config to `config/` folder
-- Disable other mods' village spawning (see above)
+- Disable other mods' village spawning (see [Mod Compatibility](ModCompatibility.md))
 
 ### "Config syntax error on startup"
 

@@ -5,9 +5,9 @@ This guide explains how to configure MVS to work with popular village mods.
 ## Table of Contents
 
 - [Quick Reference](#quick-reference)
-- [CTOV](#ctov-choicetheorems-overhauled-village)
+- [ChoiceTheorem's Overhauled Village (CTOV)](#choicetheorems-overhauled-village-ctov)
 - [Better Village](#better-village)
-- [BCA (Cobblemon Additions)](#bca-cobblemon-additions)
+- [Cobblemon Additions (BCA)](#cobblemon-additions-bca)
 - [Towns & Towers](#towns--towers)
 - [Terralith](#terralith)
 - [Testing New Mods](#testing-new-mods)
@@ -17,14 +17,14 @@ This guide explains how to configure MVS to work with popular village mods.
 
 | Mod | Type | Disable Spawning? | Notes |
 |-----|------|------------------|-------|
-| CTOV | Structure adder | Yes (config) | Disable village generation in ctov-common.toml |
-| Better Village | Jigsaw replacer | Disable spacing only | **Critical:** Disable `enabled_custom_config` |
+| [ChoiceTheorem's Overhauled Village](https://modrinth.com/mod/ct-overhaul-village) (CTOV) | Structure adder | Yes (config) | Disable village generation in ctov-common.toml |
+| [Better Village](https://modrinth.com/mod/better-village-fabric) | Jigsaw replacer | Disable spacing only | **Critical:** Disable `enabled_custom_config` |
 | Luki's Grand Capitals | Jigsaw replacer | No | Works alongside MVS automatically |
-| BCA | Structure adder | No | MVS intercepts automatically |
-| Towns & Towers | Structure adder | No | Works out of the box |
-| Terralith | Structure adder | No | Works out of the box |
+| [Cobblemon Additions](https://modrinth.com/mod/cobblemon-additions) (BCA) | Structure adder | No | MVS intercepts automatically |
+| [Towns & Towers](https://modrinth.com/mod/towns-and-towers) | Structure adder | No | Works out of the box |
+| [Terralith](https://modrinth.com/mod/terralith) | Structure adder | No | Works out of the box |
 
-## CTOV (ChoiceTheorem's Overhauled Village)
+## ChoiceTheorem's Overhauled Village (CTOV)
 
 ### Required: Disable CTOV Village Spawning
 
@@ -105,40 +105,48 @@ structure_pool: [
 
 **Note:** You don't need to add Better Village to your `structure_pool` - it enhances whatever vanilla villages MVS selects.
 
-## BCA (Cobblemon Additions)
+## Cobblemon Additions (BCA)
 
 ### No Configuration Needed
 
-BCA completely replaces the vanilla village structure_set via datapack. MVS automatically intercepts BCA spawn attempts.
+BCA completely replaces the vanilla `minecraft:villages` structure_set via datapack. MVS automatically intercepts BCA spawn attempts.
 
 ### MVS Configuration
 
 ```json5
 structure_pool: [
-  // BCA default villages
-  { structure: "bca:village/default_small", biomes: {"*:*": 16} },
-  { structure: "bca:village/default_mid", biomes: {"*:*": 11} },
-  { structure: "bca:village/default_large", biomes: {"*:*": 2} },
+  // BCA default villages (spawn in vanilla village biomes)
+  { structure: "bca:village/default_small", biomes: {"#bca:villages": 16} },
+  { structure: "bca:village/default_mid", biomes: {"#bca:villages": 11} },
+  { structure: "bca:village/default_large", biomes: {"#bca:villages": 2} },
 
-  // BCA dark forest villages
-  { structure: "bca:village/dark_small", biomes: {"#minecraft:is_dark_forest": 16} },
-  { structure: "bca:village/dark_mid", biomes: {"#minecraft:is_dark_forest": 11} },
+  // BCA dark villages (dark forest, swamp, mushroom fields)
+  { structure: "bca:village/dark_small", biomes: {"#bca:dark": 16} },
+  { structure: "bca:village/dark_mid", biomes: {"#bca:dark": 11} },
+
+  // BCA fighting villages (plains, savanna, meadow)
+  { structure: "bca:village/fighting_small", biomes: {"#bca:fighting": 16} },
+  { structure: "bca:village/fighting_mid", biomes: {"#bca:fighting": 11} },
+  { structure: "bca:village/fighting_large", biomes: {"#bca:fighting": 2} },
 ]
 ```
 
 **Note:** BCA structure names include `village/` in the path. The pattern `bca:default_*` won't match - use `bca:village/default_*`.
 
-### BCA Intended Weights
+### BCA Intended Weights (v4.1.4+)
 
-From BCA's structure_set, these are the mod's spawn rates:
+From BCA's structure_set, these are the mod's intended spawn rates:
 
-| Structure | Weight | Frequency |
-|-----------|--------|-----------|
-| default_small | 16 | Common |
-| default_mid | 11 | Frequent |
-| default_large | 2 | Rare |
-| dark_small | 16 | Common |
-| dark_mid | 11 | Frequent |
+| Structure | Weight | Frequency | Biomes |
+|-----------|--------|-----------|--------|
+| default_small | 16 | Common | Vanilla village biomes |
+| default_mid | 11 | Frequent | Vanilla village biomes |
+| default_large | 2 | Rare | Vanilla village biomes |
+| dark_small | 16 | Common | Dark forest, swamp, mushroom |
+| dark_mid | 11 | Frequent | Dark forest, swamp, mushroom |
+| fighting_small | 16 | Common | Plains, savanna, meadow |
+| fighting_mid | 11 | Frequent | Plains, savanna, meadow |
+| fighting_large | 2 | Rare | Plains, savanna, meadow |
 
 ### Known Issue: Chunk Palette Corruption
 
@@ -207,10 +215,10 @@ To check if a new village mod works with MVS:
 
 ## Known Issues
 
-### CTOV + BCA Together
+### Using CTOV and BCA Together
 
-When using both:
-1. Disable CTOV village spawning (config)
+When using both mods:
+1. Disable CTOV village spawning (in config)
 2. Leave BCA enabled (no config needed)
 3. Add both to your structure_pool
 4. BCA controls spawn locations, MVS provides variety
