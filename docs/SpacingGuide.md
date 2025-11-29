@@ -22,24 +22,26 @@ Village density is controlled by three parameters in Minecraft's `structure_set`
 
 **How it works:**
 
-Minecraft divides the world into a grid of cells, each `spacing` chunks wide. Within each cell, one village can spawn, but never closer than `separation` chunks to the cell edge. The `salt` offsets the grid to create variety.
+Minecraft divides the world into a grid of cells, each `spacing` chunks wide. Within each cell, one village can spawn within a (spacing - separation) area, with `separation` chunks excluded from the positive X and Z edges. The `salt` offsets the grid to create variety.
 
 **Visual example (spacing=34, separation=8):**
 
 ```
-+----------------------------------+----------------------------------+
-|                                  |                                  |
-|            34 chunks             |            34 chunks             |
-|                                  |                                  |
-|        +---------------+         |         +---------------+        |
-|        |   8 chunk     |         |         |   8 chunk     |        |
-|        |   exclusion   |         |         |   exclusion   |        |
-|        |      zone     |         |         |      zone     |        |
-|        |       V       |         |         |       V       |        |
-|        +---------------+         |         +---------------+        |
-|                                  |                                  |
-+----------------------------------+----------------------------------+
+|<------------ 34 chunks ------------>|<------------ 34 chunks ------------>|
++----------------------------+--------+----------------------------+--------+
+|                            |        |                            |        |
+|                            |   8    |                            |   8    |
+|     26x26 spawn area       | chunk  |     26x26 spawn area       | chunk  |
+|                            |  excl  |                            |  excl  |
+|         V can spawn        |  zone  |         V can spawn        |  zone  |
+|           anywhere         |        |           anywhere         |        |
+|            here            |        |            here            |        |
++----------------------------+--------+----------------------------+--------+
+|    8 chunk exclusion zone  |        |    8 chunk exclusion zone  |        |
++----------------------------+--------+----------------------------+--------+
 ```
+
+The separation value removes chunks from the **positive X and Z edges** of each cell, leaving a (spacing - separation) x (spacing - separation) area where villages can spawn.
 
 ## Default Values
 
