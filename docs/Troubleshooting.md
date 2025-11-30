@@ -170,7 +170,7 @@ If a structure has no matching biome rule, it won't spawn there.
 {
   structure: "minecraft:village_desert",
   biomes: {
-    "#minecraft:is_desert": 10,
+    "#minecraft:has_structure/village_desert": 10,
     "#minecraft:is_badlands": 5
   }
 }
@@ -186,7 +186,7 @@ If you use `"*:*"` as fallback, structures spawn everywhere.
 biomes: {"*:*": 10}
 
 // Use:
-biomes: {"#minecraft:is_plains": 10}
+biomes: {"#minecraft:has_structure/village_plains": 10}
 ```
 
 #### 3. Modded Biome Not Tagged
@@ -212,14 +212,14 @@ Check spawn distribution with debug logging. If one mod dominates, weights are u
 
 ```json5
 // BAD - CTOV will dominate
-{ structure: "ctov:village_plains", biomes: {"#minecraft:is_plains": 100} },
-{ structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
+{ structure: "ctov:small/village_plains", biomes: {"#minecraft:has_structure/village_plains": 100} },
+{ structure: "minecraft:village_plains", biomes: {"#minecraft:has_structure/village_plains": 10} },
 ```
 
 **Fix:** Balance weights:
 ```json5
-{ structure: "ctov:village_plains", biomes: {"#minecraft:is_plains": 10} },
-{ structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} },
+{ structure: "ctov:small/village_plains", biomes: {"#minecraft:has_structure/village_plains": 10} },
+{ structure: "minecraft:village_plains", biomes: {"#minecraft:has_structure/village_plains": 10} },
 ```
 
 #### 2. Pattern Too Broad
@@ -354,8 +354,11 @@ Config must be at:
 With `debug_cmd: true`:
 
 ```
-/mvs debug mod-scan      → Outputs to local/mvs/mod-scan-*.txt
-/mvs debug mod-weights   → Outputs to local/mvs/mod-weights-*.txt
+/mvs debug mod-scan       # Structure analysis → local/mvs/mod-scan-*.txt
+/mvs debug mod-scan all   # Include non-village structures
+/mvs debug profiler start # Begin profiling
+/mvs debug profiler stop  # Stop profiling
+/mvs debug profiler stats # Show performance stats
 ```
 
 ## Getting Help

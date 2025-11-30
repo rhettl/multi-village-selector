@@ -31,7 +31,7 @@ This guide walks you through installing MVS and getting your first config workin
 ### NeoForge
 
 1. Download from [Modrinth](https://modrinth.com/mod/multi-village-selector) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
-   - `multivillageselector-neoforge-0.3.0.jar`
+   - `multivillageselector-neoforge-<version>.jar`
    - `architectury-api` (NeoForge version)
 
 2. Place both JARs in your `mods/` folder
@@ -39,7 +39,7 @@ This guide walks you through installing MVS and getting your first config workin
 ### Fabric
 
 1. Download from [Modrinth](https://modrinth.com/mod/multi-village-selector) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
-   - `multivillageselector-fabric-0.3.0.jar`
+   - `multivillageselector-fabric-<version>.jar`
    - `architectury-api` (Fabric version)
    - `fabric-api` (if not already installed)
 
