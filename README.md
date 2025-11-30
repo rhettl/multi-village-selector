@@ -107,6 +107,13 @@ These mods will still apply their changes to whatever village MVS selects, usual
 | **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md)** | Common issues and solutions |
 | **[Project Scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md)** | Design philosophy and limitations |
 
+## Known Bugs
+
+- **No villages near world spawn** - Villages won't spawn within ~8-16 chunks of (0,0). Explore further out.
+- **Better Village spacing override** - Better Village mod overrides spacing settings at runtime. See [Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md#known-bugs).
+
+See **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md#known-bugs)** for details and workarounds.
+
 ## FAQ
 
 #### Do I need village mods installed?
@@ -120,6 +127,12 @@ Currently MVS focuses on villages. See [Scope](https://github.com/RhettL/multi-v
 
 #### Fabric or NeoForge?
 Both! MVS v0.3.0+ supports both platforms via Architectury.
+
+#### Can I add this to my modpack?
+Yes! Please file an [issue](https://github.com/RhettL/multi-village-selector/issues) if you have feature requests or find bugs. If it's outside the [project scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md), I'll likely say no.
+
+#### Can you do this for all structures?
+That's harder. Managing ALL structure pools this way is much more complex. I'm considering it, but honestly comprehensive datapacks are probably easier for that use case.
 
 ## Contributing
 

@@ -1,76 +1,201 @@
 # Commands Reference
 
-MVS provides in-game commands for configuration and debugging. All commands require **OP level 2**.
+All commands require **OP level 2** on dedicated servers. Single-player allows all commands.
 
 ## Command Overview
 
 | Command | Description |
 |---------|-------------|
-| `/mvs help` | Show all commands |
+| `/mvs` or `/mvs help` | Show command help |
+| `/mvs info` | Show MVS status, intercepted sets, pool size |
 | `/mvs generate` | Generate config from installed mods |
-| `/mvs biome` | Current biome info |
-| `/mvs biome <id>` | Look up specific biome |
-| `/mvs structure biomes <id>` | Show biome rules for structure |
-| `/mvs structure test <structure> <biome>` | Test if structure spawns in biome |
+| `/mvs config reload` | Reload config without restart |
 
-**Debug commands** (require `debug_cmd: true` in config):
+### Biome Commands
+
+Commands for inspecting biome information.
 
 | Command | Description |
 |---------|-------------|
-| `/mvs debug mod-scan` | Scan all mods for structures |
-| `/mvs debug mod-weights` | Show registry weight analysis |
+| `/mvs biome` | Current biome info + frequency |
+| `/mvs biome tags [biome]` | List tags for current or specified biome |
+| `/mvs biome by-tag <tag>` | Find all biomes with a tag |
+| `/mvs biome similar [biome]` | Find biomes with similar tags |
+
+### Test Commands
+
+Commands for testing MVS pool selection.
+
+| Command | Description |
+|---------|-------------|
+| `/mvs test biome [biome]` | Eligible structures + simulated selection roll |
+| `/mvs test structure <id>` | Check if structure is MVS-controlled/blocked |
+
+### Structure Commands
+
+Commands related to structure information.
+
+| Command | Description |
+|---------|-------------|
+| `/mvs structure list [full]` | List structures in pool |
+| `/mvs structure biomes <id> [full]` | Show biome rules for structure |
+| `/mvs structure test <structure> <biome>` | Test if structure spawns in biome |
+| `/mvs structure nearby [radius]` | Find structures near player (default: 100 chunks) |
+| `/mvs structure set <id> [full]` | Inspect a structure set |
+
+---
 
 ## /mvs generate
 
-Scans your installed mods and generates a complete config.
+Scans installed mods and generates a complete config.
+
+After running, a description of where the file is located and a link to open it will appear
 
 **Output:** `local/mvs/multivillageselector.json5`
 
 **What it does:**
 1. Scans all registered structures
-2. Detects village mods (CTOV, BCA, Towns & Towers, etc.)
-3. Generates biome rules from vanilla registry
-4. Normalizes weights for equal mod representation
+2. Detects village mods (CTOV, BCA, T&T, etc.)
+3. Categorizes structures into how likely they're villages (probably, likely, questionable, unlikely)
+4. Generates biome rules from registry
+5. Normalizes weights (target average: 25)
+6. Filters out the 'Unlikely' structures
+7. Comments out the questionable structures
+8. Enables MVS for the probably and likely structures
 
 **Workflow:**
 ```
 /mvs generate
 → Review local/mvs/multivillageselector.json5
 → Copy to config/multivillageselector.json5
-→ Restart Minecraft
+→ Restart Minecraft (or /mvs config reload)
 ```
+
+**Important:** Always review the config generated. As the user, you are in control of weights and structures. The generated config is a recommendation and a **guess** at best. You are responsible for the weights and structure selections -- MVS can only follow your direction.
+
+---
+
+## /mvs info
+
+Shows MVS status at a glance.
+
+```
+=== Multi Village Selector v0.3.1 ===
+
+Status: ENABLED
+Pool Size: 47 structures
+
+Blocked Structure Sets: 3
+  ⛔ bca:villages
+  ⛔ towns_and_towers:towns
+
+Intercepted Structure Sets: 1
+  ⚡ minecraft:villages
+      spacing: 34, separation: 8, salt: 10387312
+
+→ View Structure Pool (clickable)
+```
+
+---
 
 ## /mvs biome
 
-Shows information about your current biome.
+Shows current biome info including MVS frequency.
 
-**Example output:**
 ```
 === Current Biome ===
 Location: X: 1234, Y: 72, Z: -5678
 Biome: minecraft:plains
-Tags: #minecraft:is_plains, #minecraft:has_structure/village_plains
+Tags: #minecraft:has_structure/village_plains, #minecraft:is_overworld
 Biome Frequency: 1.0 (100%)
 ```
 
-### /mvs biome \<biome_id\>
+### /mvs biome tags [biome]
 
-Look up a specific biome without traveling there.
+List all tags for a biome. Omit biome to use current location.
 
-**Example:**
 ```
-/mvs biome terralith:volcanic_peaks
+/mvs biome tags minecraft:dark_forest
+
+Tags for minecraft:dark_forest:
+  #minecraft:is_forest
+  #minecraft:is_overworld
+  #minecraft:has_structure/woodland_mansion
 ```
+
+### /mvs biome by-tag \<tag\>
+
+Find all biomes that have a specific tag.
+
+```
+/mvs biome by-tag #minecraft:is_forest
+
+Biomes with tag #minecraft:is_forest:
+  minecraft:forest
+  minecraft:flower_forest
+  minecraft:dark_forest
+  minecraft:birch_forest
+  ...
+```
+
+---
+
+## /mvs test
+
+Test commands for debugging spawn rules.
+
+### /mvs test biome [biome]
+
+Shows eligible structures and **runs a simulated selection roll**.
+
+```
+/mvs test biome minecraft:plains
+
+=== Testing MVS Selection: minecraft:plains ===
+
+Eligible structures (filtered pool):
+  minecraft:village_plains (weight: 25)
+  ctov:small/village_plains (weight: 50)
+  ctov:medium/village_plains (weight: 20)
+
+Result: ctov:small/village_plains
+  Weight: 50
+```
+
+Run multiple times to see weighted distribution in action.
+
+### /mvs test structure \<id\>
+
+Shows structure status: MVS-controlled, blacklisted, structure_set membership.
+
+```
+/mvs test structure ctov:small/village_desert
+
+=== MVS Structure Status: ctov:small/village_desert ===
+
+✓ MVS Controlled: YES
+  This structure is in the MVS structure_pool
+
+✓ Blacklisted: NO
+
+Structure Set: minecraft:villages
+  ⚡ Structure set is INTERCEPTED by MVS
+```
+
+---
 
 ## /mvs structure
 
 Commands for inspecting structure configuration.
 
-### /mvs structure biomes \<structure_id\>
+### /mvs structure list [full]
 
-Shows which biomes a structure can spawn in and its weights.
+List all structures in your pool. Add `full` for detailed output.
 
-**Example:**
+### /mvs structure biomes \<id\> [full]
+
+Shows biome rules for a structure.
+
 ```
 /mvs structure biomes minecraft:village_plains
 
@@ -78,113 +203,111 @@ Shows which biomes a structure can spawn in and its weights.
 Source: MVS Config
 
 Biome Rules:
-  #minecraft:is_plains: weight 10
-  #minecraft:is_forest: weight 5
+  #minecraft:has_structure/village_plains: weight 25
 ```
 
 ### /mvs structure test \<structure\> \<biome\>
 
-Tests if a specific structure can spawn in a specific biome.
+Tests if a structure can spawn in a specific biome.
 
-**Example:**
 ```
 /mvs structure test minecraft:village_desert minecraft:plains
 
 Result: NO
-Reason: minecraft:plains is not in biome rules for minecraft:village_desert
+Reason: minecraft:plains does not match any biome rules
 ```
 
-## Debug Commands
+### /mvs structure nearby [radius]
 
-These require `debug_cmd: true` in your config.
+Finds MVS-controlled structures near the player. Default radius: 100 chunks.
 
-### /mvs debug mod-scan
+```
+/mvs structure nearby 50
 
-Comprehensive scan of all mods for village structures.
-
-**Output:** `local/mvs/mod-scan-<timestamp>.txt`
-
-**Includes:**
-- All registered structures
-- Structure set contents
-- Mod attribution
-
-### /mvs debug mod-weights
-
-Analyzes registry weights for all village structures.
-
-**Output:** `local/mvs/mod-weights-<timestamp>.txt`
-
-**Includes:**
-- Original registry weights
-- Normalization factors
-- Per-mod weight analysis
-
-## Usage Examples
-
-### Initial Setup
-
-```bash
-# 1. Generate config from installed mods
-/mvs generate
-
-# 2. Review the generated config
-# → Open local/mvs/multivillageselector.json5
-
-# 3. Copy to config folder and restart
+Structures within 50 chunks:
+  minecraft:village_plains at [12, -5] (320 blocks)
+  ctov:small/village_plains at [-8, 22] (544 blocks)
 ```
 
-### Debug Village Spawning
+### /mvs structure set \<id\> [full]
 
-```bash
-# 1. Stand in the problem biome
-/mvs biome
+Inspects a structure set's contents and placement settings.
 
-# 2. Check what structures can spawn here
-/mvs structure biomes minecraft:village_plains
+```
+/mvs structure set minecraft:villages
 
-# 3. Test a specific structure + biome combo
-/mvs structure test minecraft:village_desert minecraft:plains
+=== Structure Set: minecraft:villages ===
+Spacing: 34, Separation: 8, Salt: 10387312
+
+Structures:
+  minecraft:village_plains (weight: 2)
+  minecraft:village_desert (weight: 2)
+  ...
 ```
 
-### Verify Biome Frequency
-
-```bash
-# Check if biome_frequency is affecting spawn rate
-/mvs biome
-
-# Output shows:
-# Biome Frequency: 0.3 (30%)
-# → Only 30% of spawn attempts in this biome succeed
-```
+---
 
 ## Quick Reference
 
 ```bash
-# Help
-/mvs help
+# Status
+/mvs info
 
 # Generate config
 /mvs generate
 
 # Biome info
 /mvs biome
-/mvs biome minecraft:plains
-/mvs biome terralith:volcanic_peaks
+/mvs biome tags
+/mvs biome tags minecraft:dark_forest
+/mvs biome by-tag #minecraft:is_forest
+
+# Test spawning
+/mvs test biome
+/mvs test biome minecraft:plains
+/mvs test structure minecraft:village_plains
 
 # Structure inspection
+/mvs structure list
 /mvs structure biomes minecraft:village_plains
-/mvs structure biomes ctov:village_desert
 /mvs structure test minecraft:village_desert minecraft:plains
+/mvs structure nearby 100
+/mvs structure set minecraft:villages
+
+# Config
+/mvs config reload
 
 # Debug (requires debug_cmd: true)
 /mvs debug mod-scan
-/mvs debug mod-weights
+/mvs debug mod-scan all
+/mvs debug profiler start
 ```
 
 ---
 
-**See Also:**
-- [Configuration](Configuration.md) - Config format reference
-- [Getting Started](GettingStarted.md) - First-time setup
-- [Troubleshooting](Troubleshooting.md) - Common issues
+## Debug Commands
+
+Require `debug_cmd: true` in config.
+
+### /mvs debug mod-scan [all]
+
+Scans mods for structures and outputs detailed analysis.
+
+**Output:** `local/mvs/mod-scan-<timestamp>.txt`
+
+- Without `all`: Only village-related structures
+- With `all`: Every structure from every structure set
+
+### /mvs debug profiler
+
+Performance profiling for structure generation.
+
+```
+/mvs debug profiler start   # Begin profiling
+/mvs debug profiler stop    # Stop profiling
+/mvs debug profiler stats   # Show statistics
+```
+
+---
+
+**See Also:** [Configuration](Configuration.md) | [Getting Started](GettingStarted.md) | [Troubleshooting](Troubleshooting.md)

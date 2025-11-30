@@ -30,6 +30,7 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -149,7 +150,10 @@ public class MVSCommands {
             mvsCommand = mvsCommand.then(Commands.literal("debug")
                 .executes(DebugCommands::executeHelp)
                 .then(Commands.literal("mod-scan")
-                    .executes(DebugCommands::executeModScan)
+                    .executes(ctx -> DebugCommands.executeModScan(ctx, false))
+                    .then(Commands.literal("all")
+                        .executes(ctx -> DebugCommands.executeModScan(ctx, true))
+                    )
                 )
                 .then(Commands.literal("profiler")
                     .executes(ProfilerCommands::executeStats)
@@ -577,16 +581,55 @@ public class MVSCommands {
             }
         }
 
+        // Pre-group likely and questionable structures by structure_set (needed for block_structure_sets)
+        Map<String, List<StructureInfo>> likelyBySet = new TreeMap<>();
+        for (StructureInfo info : scan.likelyStructures) {
+            String setId = info.getFinalSet();
+            if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                likelyBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+            }
+        }
+
+        Map<String, List<StructureInfo>> questionableBySet = new TreeMap<>();
+        for (StructureInfo info : scan.questionableStructures) {
+            String setId = info.getFinalSet();
+            if (setId != null && !setId.equals("NONE (uncategorized)")) {
+                questionableBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
+            }
+        }
+
         // block_structure_sets section - block other *:villages sets to prevent duplicate grids
         // Their structures are still in the pool, spawned via minecraft:villages grid
-        lines.add("  // Structure sets to block (their structures spawn via minecraft:villages instead)");
+        lines.add("  // Structure sets to block (prevents double-spawning, MVS controls these instead)");
         lines.add("  block_structure_sets: [");
-        lines.add("    // Example: \"minecraft:pillager_outposts\",");
+
+        // Core: other *:villages sets
+        boolean hasCore = false;
         for (String setId : structuresBySet.keySet()) {
             if (!setId.equals(MINECRAFT_VILLAGES_SET) && setId.endsWith(":villages")) {
                 lines.add("    \"" + setId + "\",");
+                hasCore = true;
             }
         }
+
+        // Likely: custom structure_sets that appear to be villages
+        if (!likelyBySet.isEmpty()) {
+            if (hasCore) lines.add("");
+            lines.add("    // LIKELY village sets (review - remove if incorrect)");
+            for (String setId : likelyBySet.keySet()) {
+                lines.add("    \"" + setId + "\",");
+            }
+        }
+
+        // Questionable: uncertain structure_sets (commented out)
+        if (!questionableBySet.isEmpty()) {
+            lines.add("");
+            lines.add("    // QUESTIONABLE (uncomment to use - verify these are actually villages)");
+            for (String setId : questionableBySet.keySet()) {
+                lines.add("    // \"" + setId + "\",");
+            }
+        }
+
         lines.add("  ],");
         lines.add("");
 
@@ -672,32 +715,13 @@ public class MVSCommands {
             }
         }
 
-        // === ADD FYI STRUCTURES (LIKELY + QUESTIONABLE) ===
-        // Use structures from unified scan (already categorized)
+        // === ADD LIKELY + QUESTIONABLE STRUCTURES ===
+        // These are already grouped in likelyBySet/questionableBySet (populated earlier for block_structure_sets)
 
-        // Group likely structures by structure_set
-        Map<String, List<StructureInfo>> likelyBySet = new TreeMap<>();
-        for (StructureInfo info : scan.likelyStructures) {
-            String setId = info.getFinalSet();
-            if (setId != null && !setId.equals("NONE (uncategorized)")) {
-                likelyBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
-            }
-        }
-
-        // Group questionable structures by structure_set
-        Map<String, List<StructureInfo>> questionableBySet = new TreeMap<>();
-        for (StructureInfo info : scan.questionableStructures) {
-            String setId = info.getFinalSet();
-            if (setId != null && !setId.equals("NONE (uncategorized)")) {
-                questionableBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
-            }
-        }
-
-        // Add LIKELY structures (uncommented)
+        // Add LIKELY structures (uncommented, structure_set already blocked above)
         if (!likelyBySet.isEmpty()) {
-            lines.add("    // === LIKELY VILLAGE MODS (review and disable if incorrect) ===");
-            lines.add("    // These appear to be villages - ENABLED by default.");
-            lines.add("    // Comment out any that aren't actually villages.");
+            lines.add("    // === LIKELY VILLAGE MODS (review and remove if incorrect) ===");
+            lines.add("    // These appear to be villages. Their structure_sets are blocked above.");
             lines.add("");
 
             for (Map.Entry<String, List<StructureInfo>> setEntry : likelyBySet.entrySet()) {
@@ -745,10 +769,12 @@ public class MVSCommands {
             }
         }
 
-        // Add QUESTIONABLE structures (commented out)
+        // Add QUESTIONABLE structures (commented out, structure_set also commented in block list)
         if (!questionableBySet.isEmpty()) {
             lines.add("    // === UNCERTAIN STRUCTURES (verify before enabling) ===");
-            lines.add("    // These may or may not be villages. Uncomment only if verified.");
+            lines.add("    // These may or may not be villages. To enable:");
+            lines.add("    // 1. Uncomment the structure entries below");
+            lines.add("    // 2. Uncomment the structure_set in block_structure_sets above");
             lines.add("");
 
             for (Map.Entry<String, List<StructureInfo>> setEntry : questionableBySet.entrySet()) {
@@ -902,7 +928,12 @@ public class MVSCommands {
 
         source.sendSuccess(() -> Component.literal("/mvs debug mod-scan")
             .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - Scan all mods for village structures")
+            .append(Component.literal(" - Scan mods for village structures")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("/mvs debug mod-scan all")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Scan ALL structures (unfiltered)")
                 .withStyle(ChatFormatting.GRAY)), false);
 
         source.sendSuccess(() -> Component.literal("  Shows registry state AND datapack/JAR definitions")
@@ -922,11 +953,13 @@ public class MVSCommands {
     /**
      * Handle /mvs debug mod-scan command
      * Scans all mods/datapacks for village structures and outputs comprehensive report
+     * @param showAll if true, shows ALL structures (unfiltered); if false, shows only village-related
      */
-    public static int executeModScanCommand(CommandContext<CommandSourceStack> context) {
+    public static int executeModScanCommand(CommandContext<CommandSourceStack> context, boolean showAll) {
         CommandSourceStack source = context.getSource();
 
-        source.sendSuccess(() -> Component.literal("Scanning registry and mods for village structures...")
+        String scanType = showAll ? "ALL structures (unfiltered)" : "village structures";
+        source.sendSuccess(() -> Component.literal("Scanning registry and mods for " + scanType + "...")
             .withStyle(ChatFormatting.YELLOW), false);
 
         try {
@@ -935,7 +968,8 @@ public class MVSCommands {
             java.nio.file.Files.createDirectories(outputDir);
 
             String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
-            Path outputFile = outputDir.resolve("mod-scan-" + timestamp + ".txt");
+            String filePrefix = showAll ? "mod-scan-all-" : "mod-scan-";
+            Path outputFile = outputDir.resolve(filePrefix + timestamp + ".txt");
 
             // ===========================================
             // UNIFIED DATA COLLECTION (ONE PASS)
@@ -947,16 +981,25 @@ public class MVSCommands {
             // ===========================================
             List<String> lines = new ArrayList<>();
             lines.add("===========================================");
-            lines.add("  MVS Unified Structure Analysis");
+            lines.add(showAll ? "  MVS Complete Structure Dump (UNFILTERED)" : "  MVS Unified Structure Analysis");
             lines.add("===========================================");
             lines.add("");
             lines.add("Generated: " + timestamp);
             lines.add("");
-            lines.add("Scope: Only structures in 'villages' structure_sets + uncategorized");
-            lines.add("");
-            lines.add("Collected data from:");
-            lines.add("  1. Registry (minecraft:villages structure_set + uncategorized structures)");
-            lines.add("  2. JAR files (*:villages structure_sets + uncategorized structures)");
+            if (showAll) {
+                lines.add("Scope: ALL structures from ALL structure_sets (no filtering)");
+                lines.add("");
+                lines.add("This dump shows every structure found in:");
+                lines.add("  1. Registry (all structure_sets)");
+                lines.add("  2. JAR files (all structure_sets)");
+                lines.add("  3. Datapacks (all structure_sets)");
+            } else {
+                lines.add("Scope: Only structures in 'villages' structure_sets + uncategorized");
+                lines.add("");
+                lines.add("Collected data from:");
+                lines.add("  1. Registry (minecraft:villages structure_set + uncategorized structures)");
+                lines.add("  2. JAR files (*:villages structure_sets + uncategorized structures)");
+            }
             lines.add("");
             lines.add("Format:");
             lines.add("  Structure ID");
@@ -967,9 +1010,11 @@ public class MVSCommands {
             lines.add("===========================================");
             lines.add("");
 
-            // Output all CORE structures sorted by mod
+            // Output structures sorted by mod
+            // When showAll: use ALL structures; otherwise: use filtered core structures
             Map<String, List<StructureInfo>> structuresByMod = new TreeMap<>();
-            for (StructureInfo info : scan.coreStructures) {
+            Collection<StructureInfo> structuresToShow = showAll ? scan.allStructures.values() : scan.coreStructures;
+            for (StructureInfo info : structuresToShow) {
                 structuresByMod.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
             }
 
@@ -1026,13 +1071,14 @@ public class MVSCommands {
             lines.add("===========================================");
             lines.add("SUMMARY");
             lines.add("===========================================");
-            lines.add("Total structures: " + scan.coreStructures.size());
+            int totalStructures = showAll ? scan.allStructures.size() : scan.coreStructures.size();
+            lines.add("Total structures: " + totalStructures);
             lines.add("Total mods: " + structuresByMod.size());
 
-            int withRegistryData = (int) scan.coreStructures.stream()
+            int withRegistryData = (int) structuresToShow.stream()
                 .filter(s -> s.registryWeight != null || s.registrySet != null)
                 .count();
-            int withJarData = (int) scan.coreStructures.stream()
+            int withJarData = (int) structuresToShow.stream()
                 .filter(s -> s.jarWeight != null || s.jarSet != null)
                 .count();
 
@@ -1043,88 +1089,90 @@ public class MVSCommands {
             lines.add("");
 
             // ===========================================
-            // FYI: OTHER VILLAGE-RELATED STRUCTURES
+            // FYI: OTHER VILLAGE-RELATED STRUCTURES (only in filtered mode)
             // ===========================================
-            lines.add("===========================================");
-            lines.add("  FYI: Other Village-Related Structures");
-            lines.add("===========================================");
-            lines.add("");
-            lines.add("The following structures have 'village' in their name but use");
-            lines.add("CUSTOM structure_sets (not *:villages). MVS cannot automatically");
-            lines.add("handle these - you may need to configure them manually.");
-            lines.add("");
+            if (!showAll) {
+                lines.add("===========================================");
+                lines.add("  FYI: Other Village-Related Structures");
+                lines.add("===========================================");
+                lines.add("");
+                lines.add("The following structures have 'village' in their name but use");
+                lines.add("CUSTOM structure_sets (not *:villages). MVS cannot automatically");
+                lines.add("handle these - you may need to configure them manually.");
+                lines.add("");
 
-            // Combine likely + questionable structures
-            List<StructureInfo> allOtherStructures = new ArrayList<>();
-            allOtherStructures.addAll(scan.likelyStructures);
-            allOtherStructures.addAll(scan.questionableStructures);
+                // Combine likely + questionable structures
+                List<StructureInfo> allOtherStructures = new ArrayList<>();
+                allOtherStructures.addAll(scan.likelyStructures);
+                allOtherStructures.addAll(scan.questionableStructures);
 
-            if (allOtherStructures.isEmpty()) {
-                lines.add("No other village-related structures found.");
-            } else {
-                // Group by mod
-                Map<String, List<StructureInfo>> otherStructuresByMod = new TreeMap<>();
-                for (StructureInfo info : allOtherStructures) {
-                    otherStructuresByMod.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
-                }
-
-                for (Map.Entry<String, List<StructureInfo>> modEntry : otherStructuresByMod.entrySet()) {
-                    String modId = modEntry.getKey();
-                    List<StructureInfo> modStructures = modEntry.getValue();
-
-                    lines.add("=== " + modId.toUpperCase() + " (" + modStructures.size() + " structures) ===");
-                    lines.add("");
-
-                    // Group by structure_set
-                    Map<String, List<StructureInfo>> structuresBySet = new TreeMap<>();
-                    for (StructureInfo info : modStructures) {
-                        String setId = info.getFinalSet();
-                        if (setId != null) {
-                            structuresBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
-                        }
+                if (allOtherStructures.isEmpty()) {
+                    lines.add("No other village-related structures found.");
+                } else {
+                    // Group by mod
+                    Map<String, List<StructureInfo>> otherStructuresByMod = new TreeMap<>();
+                    for (StructureInfo info : allOtherStructures) {
+                        otherStructuresByMod.computeIfAbsent(info.modId, k -> new ArrayList<>()).add(info);
                     }
 
-                    // Output each structure_set
-                    for (Map.Entry<String, List<StructureInfo>> setEntry : structuresBySet.entrySet()) {
-                        String setId = setEntry.getKey();
-                        List<StructureInfo> setStructures = setEntry.getValue();
+                    for (Map.Entry<String, List<StructureInfo>> modEntry : otherStructuresByMod.entrySet()) {
+                        String modId = modEntry.getKey();
+                        List<StructureInfo> modStructures = modEntry.getValue();
 
-                        // Sort alphabetically
-                        setStructures.sort(Comparator.comparing(s -> s.id));
+                        lines.add("=== " + modId.toUpperCase() + " (" + modStructures.size() + " structures) ===");
+                        lines.add("");
 
-                        // Get structure_set info
-                        StructureSetInfo setInfo = scan.structureSetInfo.get(setId);
-                        Integer emptyWeight = setInfo != null && setInfo.emptyWeight != null ? setInfo.emptyWeight : 0;
-
-                        lines.add("Structure Set: " + setId + " (Empty Weight: " + emptyWeight + ")");
-
-                        // List structures with clean format
-                        for (StructureInfo info : setStructures) {
-                            Integer weight = info.getFinalWeight();
-                            if (weight != null) {
-                                lines.add(String.format("  %3d - %s", weight, info.id));
-                            } else {
-                                lines.add("    ? - " + info.id + " (NO WEIGHT)");
+                        // Group by structure_set
+                        Map<String, List<StructureInfo>> structuresBySet = new TreeMap<>();
+                        for (StructureInfo info : modStructures) {
+                            String setId = info.getFinalSet();
+                            if (setId != null) {
+                                structuresBySet.computeIfAbsent(setId, k -> new ArrayList<>()).add(info);
                             }
                         }
 
-                        lines.add("");
+                        // Output each structure_set
+                        for (Map.Entry<String, List<StructureInfo>> setEntry : structuresBySet.entrySet()) {
+                            String setId = setEntry.getKey();
+                            List<StructureInfo> setStructures = setEntry.getValue();
 
-                        // Add weight analysis
-                        StructureScanner.addWeightAnalysisForSet(lines, setStructures, setInfo);
+                            // Sort alphabetically
+                            setStructures.sort(Comparator.comparing(s -> s.id));
+
+                            // Get structure_set info
+                            StructureSetInfo setInfo = scan.structureSetInfo.get(setId);
+                            Integer emptyWeight = setInfo != null && setInfo.emptyWeight != null ? setInfo.emptyWeight : 0;
+
+                            lines.add("Structure Set: " + setId + " (Empty Weight: " + emptyWeight + ")");
+
+                            // List structures with clean format
+                            for (StructureInfo info : setStructures) {
+                                Integer weight = info.getFinalWeight();
+                                if (weight != null) {
+                                    lines.add(String.format("  %3d - %s", weight, info.id));
+                                } else {
+                                    lines.add("    ? - " + info.id + " (NO WEIGHT)");
+                                }
+                            }
+
+                            lines.add("");
+
+                            // Add weight analysis
+                            StructureScanner.addWeightAnalysisForSet(lines, setStructures, setInfo);
+                        }
+
+                        lines.add("");
                     }
 
-                    lines.add("");
+                    lines.add("NOTE: These structures use their own structure_sets and will NOT be");
+                    lines.add("automatically included by MVS. To use them, you may need to:");
+                    lines.add("  1. Add their structure_set to MVS config (if they can be intercepted)");
+                    lines.add("  2. Configure the mod directly to disable their native spawning");
+                    lines.add("  3. Use prevent_spawn patterns if they conflict with MVS villages");
                 }
 
-                lines.add("NOTE: These structures use their own structure_sets and will NOT be");
-                lines.add("automatically included by MVS. To use them, you may need to:");
-                lines.add("  1. Add their structure_set to MVS config (if they can be intercepted)");
-                lines.add("  2. Configure the mod directly to disable their native spawning");
-                lines.add("  3. Use prevent_spawn patterns if they conflict with MVS villages");
+                lines.add("===========================================");
             }
-
-            lines.add("===========================================");
 
             // Write to file
             java.nio.file.Files.write(outputFile, lines, java.nio.charset.StandardCharsets.UTF_8);

@@ -4,6 +4,7 @@ Common issues and solutions for Multi Village Selector v0.3.0+.
 
 ## Table of Contents
 
+- [Known Bugs](#known-bugs)
 - [Quick Diagnostics](#quick-diagnostics)
 - [Villages Not Spawning](#villages-not-spawning)
 - [Wrong Villages in Wrong Biomes](#wrong-villages-in-wrong-biomes)
@@ -12,6 +13,46 @@ Common issues and solutions for Multi Village Selector v0.3.0+.
 - [Config Not Loading](#config-not-loading)
 - [Debug Mode](#debug-mode)
 - [Getting Help](#getting-help)
+
+## Known Bugs
+
+These are confirmed issues with MVS or common mod interactions. Workarounds are provided where available.
+
+### No Villages Near World Spawn
+
+**Symptom:** Villages never spawn within approximately 8-16 chunks (~128-256 blocks) of the world spawn point (0, 0).
+
+**Cause:** This appears to be related to Minecraft's structure placement grid or spawn protection. The exact cause is under investigation.
+
+**Status:** Investigating for v0.4.0 fix.
+
+**Workaround:** Explore further from spawn. Villages will spawn normally once you're beyond ~300 blocks from (0, 0). This is also why testing should be done 1000+ blocks from spawn.
+
+### Better Village Spacing Override
+
+**Symptom:** Village density doesn't match your spacing datapack settings. Villages spawn much less frequently than expected, or only in certain biomes like oceans.
+
+**Cause:** The Better Village mod modifies the `minecraft:villages` structure_set at runtime, overriding the spacing and separation values. Since MVS intercepts structure **selection** but not structure_set **definition**, Better Village's spacing takes precedence.
+
+**Status:** Won't fix in MVS. This is Better Village's intended behavior.
+
+**Workaround:** Disable Better Village's custom spacing in `config/bettervillage_1.properties`:
+
+```properties
+boolean.villages.enabled_custom_config=false
+```
+
+This lets your spacing datapack (or vanilla defaults) control village density while Better Village still modifies village buildings.
+
+### Spacing/Separation Not Configurable in MVS
+
+**Symptom:** You want to control village density (spacing, separation, spread_type) through MVS config but these options don't exist.
+
+**Cause:** MVS v0.3.0 controls structure **selection** only. Placement grid settings are controlled by datapacks or other mods.
+
+**Status:** Planned for v0.4.0/v1.0. MVS will add a `placement` config section to take full ownership of intercepted structure_sets.
+
+**Workaround:** Use a datapack to control spacing. See [Spacing Guide](SpacingGuide.md) for ready-made datapacks and instructions.
 
 ## Quick Diagnostics
 

@@ -13,7 +13,7 @@ public class DebugCommands {
         return com.rhett.multivillageselector.commands.MVSCommands.executeDebugHelpCommand(context);
     }
 
-    public static int executeModScan(CommandContext<CommandSourceStack> context) {
-        return com.rhett.multivillageselector.commands.MVSCommands.executeModScanCommand(context);
+    public static int executeModScan(CommandContext<CommandSourceStack> context, boolean showAll) {
+        return com.rhett.multivillageselector.commands.MVSCommands.executeModScanCommand(context, showAll);
     }
 }

@@ -511,12 +511,24 @@ private static JarScanData scanJarsComplete(net.minecraft.server.MinecraftServer
             String modId = mod.getModId();
             var dataRoot = mod.findResource("data").orElse(null);
 
+            // Debug: Log which mods have data directories
+            if (dataRoot != null) {
+                MVSCommon.LOGGER.debug("[JAR-SCAN] Scanning mod '{}' at: {}", modId, dataRoot);
+            } else {
+                MVSCommon.LOGGER.debug("[JAR-SCAN] Mod '{}' has no data directory", modId);
+            }
+
             try {
                 // First, scan structure_set files to get weights and empty weights
                 Map<String, StructureJarInfo> structureSetData = scanAllStructureSetFiles(dataRoot, modId, result.structureSetInfo);
 
                 // Then, scan individual structure files and merge with structure_set data
                 List<StructureJarInfo> jarStructures = scanAllStructureFiles(dataRoot, modId, structureSetData);
+
+                // Debug: Log structure_sets found
+                if (!structureSetData.isEmpty()) {
+                    MVSCommon.LOGGER.debug("[JAR-SCAN] Mod '{}' has {} structures in structure_sets", modId, structureSetData.size());
+                }
 
                 // Populate StructureInfo map - COLLECT ALL (no filtering)
                 for (StructureJarInfo jarInfo : jarStructures) {
@@ -1053,10 +1065,13 @@ public static boolean isLikelyVillageStructureSet(String setId, Map<String, Stru
  * Check if structure name has UNLIKELY patterns (decorations, not villages)
  */
 public static boolean isUnlikelyByName(String structureName) {
-    String lower = structureName.toLowerCase();
-
-    // Check if structure_set name exactly matches structure name (underwater_village pattern)
-    // We can't check this here without StructureJarInfo, so skip for now
+    // Extract just the path portion (after the colon) to avoid false positives
+    // from namespace names like "towns_and_towers" matching "tower"
+    String path = structureName.toLowerCase();
+    int colonIndex = path.indexOf(':');
+    if (colonIndex >= 0) {
+        path = path.substring(colonIndex + 1);
+    }
 
     // Structure name contains non-village keywords
     String[] nonVillageKeywords = {
@@ -1066,7 +1081,7 @@ public static boolean isUnlikelyByName(String structureName) {
     };
 
     for (String keyword : nonVillageKeywords) {
-        if (lower.contains(keyword)) {
+        if (path.contains(keyword)) {
             return true;
         }
     }
