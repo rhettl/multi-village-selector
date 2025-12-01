@@ -25,11 +25,11 @@ import java.util.List;
 public class StructureCommands {
 
     /**
-     * Handle /mvs structure list [full]
+     * Handle /mvs structure pool [full]
      * Lists all structures in the structure_pool (including empty entries)
      * @param showFull if true, shows all structures without truncation
      */
-    public static int executeList(CommandContext<CommandSourceStack> context, boolean showFull) {
+    public static int executePool(CommandContext<CommandSourceStack> context, boolean showFull) {
         CommandSourceStack source = context.getSource();
 
         try {
@@ -100,7 +100,7 @@ public class StructureCommands {
                         .withUnderlined(true)
                         .withClickEvent(new net.minecraft.network.chat.ClickEvent(
                             net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                            "/mvs structure list full"))
+                            "/mvs structure pool full"))
                         .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
                             net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
                             Component.literal("Click to show all " + structureCount + " structures"))));
@@ -143,8 +143,236 @@ public class StructureCommands {
             return 1;
         } catch (Exception e) {
             source.sendFailure(Component.literal("Error: " + e.getMessage()));
+            MVSCommon.LOGGER.error("Error in structure pool command", e);
+            return 0;
+        }
+    }
+
+    /**
+     * Handle /mvs structure list [filter]
+     * Dumps all structures in the game to a file, grouped by namespace and structure_set.
+     * @param filter Optional pattern filter (supports wildcards like "bca:*" or "*village*", no # tags)
+     */
+    public static int executeList(CommandContext<CommandSourceStack> context, String filter) {
+        CommandSourceStack source = context.getSource();
+
+        try {
+            // Validate filter - no biome tags allowed
+            if (filter != null && filter.startsWith("#")) {
+                source.sendFailure(Component.literal("Tag patterns (#) are not supported. Use structure patterns like: bca:*, *village*"));
+                return 0;
+            }
+
+            source.sendSuccess(() -> Component.literal("Scanning all structures...")
+                .withStyle(ChatFormatting.YELLOW), false);
+
+            var server = source.getServer();
+            var registryAccess = server.registryAccess();
+
+            // Scan registry for ALL structures
+            var structureSetRegistry = registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+            var structureRegistry = registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
+
+            // Build biome tag map for all structures
+            java.util.Map<ResourceLocation, String> structureToBiomeTag = new java.util.HashMap<>();
+            for (var entry : structureRegistry.entrySet()) {
+                ResourceLocation structureId = entry.getKey().location();
+                net.minecraft.world.level.levelgen.structure.Structure structure = entry.getValue();
+
+                try {
+                    var biomeHolderSet = structure.biomes();
+                    var tagKey = biomeHolderSet.unwrapKey();
+                    if (tagKey.isPresent()) {
+                        structureToBiomeTag.put(structureId, "#" + tagKey.get().location().toString());
+                    } else {
+                        structureToBiomeTag.put(structureId, "(direct biomes)");
+                    }
+                } catch (Exception e) {
+                    structureToBiomeTag.put(structureId, "(error)");
+                }
+            }
+
+            // Group structures by namespace -> structure_set
+            // Map: namespace -> (structure_set -> list of structures)
+            java.util.Map<String, java.util.Map<String, java.util.List<StructureEntry>>> namespaceMap = new java.util.TreeMap<>();
+
+            // Track structure_set membership
+            java.util.Map<ResourceLocation, String> structureToSet = new java.util.HashMap<>();
+
+            // Scan structure_sets
+            for (var entry : structureSetRegistry.entrySet()) {
+                ResourceLocation setId = entry.getKey().location();
+                String setIdStr = setId.toString();
+                var structureSet = entry.getValue();
+
+                for (var selectionEntry : structureSet.structures()) {
+                    var structureKey = selectionEntry.structure().unwrapKey();
+                    if (structureKey.isPresent()) {
+                        ResourceLocation structureId = structureKey.get().location();
+                        structureToSet.put(structureId, setIdStr);
+                    }
+                }
+            }
+
+            // Build complete structure list
+            int totalCount = 0;
+            int filteredCount = 0;
+
+            for (var entry : structureRegistry.entrySet()) {
+                ResourceLocation structureId = entry.getKey().location();
+                String structureIdStr = structureId.toString();
+                String namespace = structureId.getNamespace();
+                String biomeTag = structureToBiomeTag.getOrDefault(structureId, "(unknown)");
+                String setId = structureToSet.getOrDefault(structureId, "(none)");
+
+                totalCount++;
+
+                // Apply filter if provided
+                if (filter != null && !filter.isEmpty()) {
+                    if (!com.rhett.multivillageselector.util.PatternMatcher.matches(structureIdStr, filter)) {
+                        continue;
+                    }
+                }
+
+                filteredCount++;
+
+                // Get weight from structure_set
+                Integer weight = null;
+                if (structureToSet.containsKey(structureId)) {
+                    String setIdStr = structureToSet.get(structureId);
+                    ResourceLocation setLoc = ResourceLocation.parse(setIdStr);
+                    var setHolder = structureSetRegistry.getHolder(net.minecraft.resources.ResourceKey.create(
+                        net.minecraft.core.registries.Registries.STRUCTURE_SET, setLoc));
+                    if (setHolder.isPresent()) {
+                        for (var sel : setHolder.get().value().structures()) {
+                            if (sel.structure().unwrapKey().map(k -> k.location().equals(structureId)).orElse(false)) {
+                                weight = sel.weight();
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Add to namespace map
+                namespaceMap
+                    .computeIfAbsent(namespace, k -> new java.util.TreeMap<>())
+                    .computeIfAbsent(setId, k -> new java.util.ArrayList<>())
+                    .add(new StructureEntry(structureIdStr, biomeTag, weight));
+            }
+
+            // Build output
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            lines.add("=".repeat(80));
+            lines.add("MVS Structure List - All Structures in Game");
+            lines.add("Generated: " + new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new java.util.Date()));
+            if (filter != null && !filter.isEmpty()) {
+                lines.add("Filter: " + filter);
+                lines.add("Matched: " + filteredCount + " / " + totalCount + " structures");
+            } else {
+                lines.add("Total: " + totalCount + " structures");
+            }
+            lines.add("=".repeat(80));
+            lines.add("");
+
+            // Output grouped by namespace
+            for (var namespaceEntry : namespaceMap.entrySet()) {
+                String namespace = namespaceEntry.getKey();
+                var setMap = namespaceEntry.getValue();
+
+                int namespaceCount = setMap.values().stream().mapToInt(java.util.List::size).sum();
+                lines.add("=== " + namespace + " (" + namespaceCount + " structures) ===");
+                lines.add("");
+
+                for (var setEntry : setMap.entrySet()) {
+                    String setId = setEntry.getKey();
+                    var structures = setEntry.getValue();
+
+                    // Calculate normalized weights for this structure_set (target avg: 25)
+                    int totalWeight = 0;
+                    int weightedCount = 0;
+                    for (var s : structures) {
+                        if (s.weight != null) {
+                            totalWeight += s.weight;
+                            weightedCount++;
+                        }
+                    }
+                    double multiplier = (weightedCount > 0 && totalWeight > 0)
+                        ? 25.0 / (totalWeight / (double) weightedCount)
+                        : 1.0;
+
+                    lines.add("  [" + setId + "]");
+
+                    // Sort structures alphabetically
+                    structures.sort((a, b) -> a.id.compareTo(b.id));
+
+                    for (var struct : structures) {
+                        String weightStr;
+                        if (struct.weight != null) {
+                            int normalized = (int) Math.round(struct.weight * multiplier);
+                            weightStr = String.format("weight: %d (normalized: %d)", struct.weight, normalized);
+                        } else {
+                            weightStr = "weight: (none)";
+                        }
+                        lines.add("    " + struct.id);
+                        lines.add("      Biomes: " + struct.biomeTag);
+                        lines.add("      " + weightStr);
+                    }
+                    lines.add("");
+                }
+            }
+
+            // Write to file
+            java.nio.file.Path gameDir = server.getServerDirectory();
+            java.nio.file.Path outputDir = gameDir.resolve("local/mvs");
+            java.nio.file.Files.createDirectories(outputDir);
+
+            String timestamp = new java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss").format(new java.util.Date());
+            java.nio.file.Path outputFile = outputDir.resolve("structure-list-" + timestamp + ".txt");
+            java.nio.file.Files.write(outputFile, lines, java.nio.charset.StandardCharsets.UTF_8);
+
+            // Success message with clickable link
+            final int finalFilteredCount = filteredCount;
+            final int finalTotalCount = totalCount;
+            final String filterMsg = filter != null ? " (filter: " + filter + ")" : "";
+
+            source.sendSuccess(() -> Component.literal("Wrote " + finalFilteredCount + " structures to file" + filterMsg)
+                .withStyle(ChatFormatting.GREEN), false);
+
+            // Clickable file path
+            String filePath = outputFile.toAbsolutePath().toString();
+            Component fileLink = Component.literal("  " + filePath)
+                .withStyle(net.minecraft.network.chat.Style.EMPTY
+                    .withColor(ChatFormatting.AQUA)
+                    .withUnderlined(true)
+                    .withClickEvent(new net.minecraft.network.chat.ClickEvent(
+                        net.minecraft.network.chat.ClickEvent.Action.OPEN_FILE,
+                        filePath))
+                    .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                        net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                        Component.literal("Click to open file"))));
+
+            source.sendSuccess(() -> fileLink, false);
+
+            return 1;
+        } catch (Exception e) {
+            source.sendFailure(Component.literal("Error: " + e.getMessage()));
             MVSCommon.LOGGER.error("Error in structure list command", e);
             return 0;
+        }
+    }
+
+    /**
+     * Helper class for structure entries in the list output
+     */
+    private static class StructureEntry {
+        final String id;
+        final String biomeTag;
+        final Integer weight;
+
+        StructureEntry(String id, String biomeTag, Integer weight) {
+            this.id = id;
+            this.biomeTag = biomeTag;
+            this.weight = weight;
         }
     }
 

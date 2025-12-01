@@ -108,10 +108,16 @@ public class MVSCommands {
                 )
             )
             .then(Commands.literal("structure")
-                .then(Commands.literal("list")
-                    .executes(ctx -> StructureCommands.executeList(ctx, false))
+                .then(Commands.literal("pool")
+                    .executes(ctx -> StructureCommands.executePool(ctx, false))
                     .then(Commands.literal("full")
-                        .executes(ctx -> StructureCommands.executeList(ctx, true))
+                        .executes(ctx -> StructureCommands.executePool(ctx, true))
+                    )
+                )
+                .then(Commands.literal("list")
+                    .executes(ctx -> StructureCommands.executeList(ctx, null))
+                    .then(Commands.argument("filter", StringArgumentType.greedyString())
+                        .executes(ctx -> StructureCommands.executeList(ctx, StringArgumentType.getString(ctx, "filter")))
                     )
                 )
                 .then(Commands.literal("biomes")
@@ -212,10 +218,16 @@ public class MVSCommands {
 
         source.sendSuccess(() -> Component.literal(""), false);
 
-        // /mvs structure list
-        source.sendSuccess(() -> Component.literal("/mvs structure list [full]")
+        // /mvs structure pool
+        source.sendSuccess(() -> Component.literal("/mvs structure pool [full]")
             .withStyle(ChatFormatting.AQUA)
-            .append(Component.literal(" - List structures in pool")
+            .append(Component.literal(" - List structures in MVS config pool")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs structure list
+        source.sendSuccess(() -> Component.literal("/mvs structure list [filter]")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Dump all game structures to file")
                 .withStyle(ChatFormatting.GRAY)), false);
 
         // /mvs structure biomes
@@ -372,10 +384,10 @@ public class MVSCommands {
                     .withUnderlined(true)
                     .withClickEvent(new net.minecraft.network.chat.ClickEvent(
                         net.minecraft.network.chat.ClickEvent.Action.RUN_COMMAND,
-                        "/mvs structure list"))
+                        "/mvs structure pool"))
                     .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
                         net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                        Component.literal("Run /mvs structure list"))));
+                        Component.literal("Run /mvs structure pool"))));
 
             source.sendSuccess(() -> structureListLink, false);
 
