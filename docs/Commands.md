@@ -37,7 +37,8 @@ Commands related to structure information.
 
 | Command | Description |
 |---------|-------------|
-| `/mvs structure list [full]` | List structures in pool |
+| `/mvs structure pool [full]` | List structures in MVS config pool |
+| `/mvs structure list [filter]` | Dump all game structures to file |
 | `/mvs structure biomes <id> [full]` | Show biome rules for structure |
 | `/mvs structure test <structure> <biome>` | Test if structure spawns in biome |
 | `/mvs structure nearby [radius]` | Find structures near player (default: 100 chunks) |
@@ -188,9 +189,61 @@ Structure Set: minecraft:villages
 
 Commands for inspecting structure configuration.
 
-### /mvs structure list [full]
+### /mvs structure pool [full]
 
-List all structures in your pool. Add `full` for detailed output.
+List all structures in your MVS config pool. Add `full` for detailed output.
+
+```
+/mvs structure pool
+
+=== MVS Structure Pool ===
+
+Structures: 12 | Empty entries: 0
+
+  minecraft:village_plains (1 biome tags)
+  minecraft:village_desert (1 biome tags)
+  ctov:small/village_plains (1 biome tags)
+  ... and 9 more
+```
+
+### /mvs structure list [filter]
+
+Dumps ALL structures in the game to a file, grouped by namespace and structure_set.
+
+**Output:** `local/mvs/structure-list-<timestamp>.txt`
+
+**Filter:** Optional pattern to filter structures (no `#` biome tags allowed)
+- `/mvs structure list` - All structures
+- `/mvs structure list bca:*` - Only BCA structures
+- `/mvs structure list *village*` - Structures with "village" in name
+
+**Example output file:**
+```
+================================================================================
+MVS Structure List - All Structures in Game
+Generated: 2025-12-01 09:30:15
+Total: 156 structures
+================================================================================
+
+=== minecraft (23 structures) ===
+
+  [minecraft:villages]
+    minecraft:village_desert
+      Biomes: #minecraft:has_structure/village_desert
+      weight=1
+    minecraft:village_plains
+      Biomes: #minecraft:has_structure/village_plains
+      weight=1
+    ...
+
+=== bca (8 structures) ===
+
+  [bca:villages]
+    bca:village/dark_mid
+      Biomes: #minecraft:is_dark_forest
+      weight=11
+    ...
+```
 
 ### /mvs structure biomes \<id\> [full]
 

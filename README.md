@@ -66,8 +66,9 @@ See the **[Configuration Guide](https://github.com/RhettL/multi-village-selector
 /mvs generate              # Scan mods and generate config
 /mvs biome                 # Show current biome info
 /mvs structure biomes <id> # Show biome rules for a structure
-/mvs structure list        # list structures in structure pool
-/mvs structure nearby      # list structures next to player   
+/mvs structure pool        # List structures in MVS config pool
+/mvs structure list        # Dump all game structures to file
+/mvs structure nearby      # List structures near player
 /mvs help                  # Show all commands
 ```
 
