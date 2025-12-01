@@ -3,7 +3,8 @@ name: Release
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v[0-9]*.[0-9]*.[0-9]*'       # v0.3.2
+      - 'v[0-9]*.[0-9]*.[0-9]*-*'     # v0.3.2-SNAPSHOT, v0.3.2-RC1, etc.
 
 jobs:
   release:
@@ -44,12 +45,23 @@ jobs:
           fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
+      - name: Find built JARs
+        id: jars
+        run: |
+          # Find the release JARs (exclude -dev, -shadow, -sources)
+          NEOFORGE_JAR=$(find neoforge/build/libs -name "multivillageselector-neoforge-*.jar" ! -name "*-dev*" ! -name "*-shadow*" ! -name "*-sources*" | head -1)
+          FABRIC_JAR=$(find fabric/build/libs -name "multivillageselector-fabric-*.jar" ! -name "*-dev*" ! -name "*-shadow*" ! -name "*-sources*" | head -1)
+          echo "neoforge=$NEOFORGE_JAR" >> $GITHUB_OUTPUT
+          echo "fabric=$FABRIC_JAR" >> $GITHUB_OUTPUT
+          echo "Found NeoForge JAR: $NEOFORGE_JAR"
+          echo "Found Fabric JAR: $FABRIC_JAR"
+
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            neoforge/build/libs/multivillageselector-neoforge-${{ steps.check_version.outputs.version }}.jar
-            fabric/build/libs/multivillageselector-fabric-${{ steps.check_version.outputs.version }}.jar
+            ${{ steps.jars.outputs.neoforge }}
+            ${{ steps.jars.outputs.fabric }}
           generate_release_notes: true
           prerelease: ${{ steps.check_version.outputs.prerelease }}
           draft: true
