@@ -399,6 +399,50 @@ public class ConfigParser {
                 }
             }
 
+            // Parse exclusion_zone (optional)
+            if (ruleObj.has("exclusion_zone")) {
+                try {
+                    Json5Element ezElement = ruleObj.get("exclusion_zone");
+                    if (!ezElement.isJson5Object()) {
+                        warnings.add(String.format(
+                            "placement[%s].exclusion_zone: expected object with {other_set, chunk_count} - using inherited value",
+                            structureSetId
+                        ));
+                    } else {
+                        Json5Object ezObj = ezElement.getAsJson5Object();
+
+                        if (!ezObj.has("other_set") || !ezObj.has("chunk_count")) {
+                            warnings.add(String.format(
+                                "placement[%s].exclusion_zone: requires both 'other_set' and 'chunk_count' - using inherited value",
+                                structureSetId
+                            ));
+                        } else {
+                            String otherSet = ezObj.get("other_set").getAsString();
+                            int chunkCount = ezObj.get("chunk_count").getAsInt();
+
+                            if (otherSet.isEmpty()) {
+                                warnings.add(String.format(
+                                    "placement[%s].exclusion_zone.other_set: empty string is invalid - using inherited value",
+                                    structureSetId
+                                ));
+                            } else if (chunkCount < 1 || chunkCount > 16) {
+                                warnings.add(String.format(
+                                    "placement[%s].exclusion_zone.chunk_count: %d is invalid (must be 1-16) - using inherited value",
+                                    structureSetId, chunkCount
+                                ));
+                            } else {
+                                ruleBuilder.exclusionZone(new ExclusionZone(otherSet, chunkCount));
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    warnings.add(String.format(
+                        "placement[%s].exclusion_zone: invalid format - using inherited value",
+                        structureSetId
+                    ));
+                }
+            }
+
             PlacementRule rule = ruleBuilder.build();
 
             // Cross-field validation: separation must be < spacing if both specified

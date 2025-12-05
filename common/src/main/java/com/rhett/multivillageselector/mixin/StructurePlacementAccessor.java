@@ -1,9 +1,13 @@
 package com.rhett.multivillageselector.mixin;
 
+import net.minecraft.core.Holder;
 import net.minecraft.core.Vec3i;
+import net.minecraft.world.level.levelgen.structure.StructureSet;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.gen.Invoker;
+
+import java.util.Optional;
 
 /**
  * Mixin accessor to expose protected methods from StructurePlacement.
@@ -32,4 +36,16 @@ public interface StructurePlacementAccessor {
      */
     @Invoker("locateOffset")
     Vec3i invokeLocateOffset();
+
+    /**
+     * Invokes the protected exclusionZone() method on StructurePlacement.
+     * Usage: ((StructurePlacementAccessor) placement).invokeExclusionZone()
+     *
+     * The exclusion zone defines which other structure set this placement avoids.
+     * Example: Pillager outposts have exclusion_zone referencing villages.
+     *
+     * @return Optional containing the exclusion zone, or empty if none defined
+     */
+    @Invoker("exclusionZone")
+    Optional<StructurePlacement.ExclusionZone> invokeExclusionZone();
 }

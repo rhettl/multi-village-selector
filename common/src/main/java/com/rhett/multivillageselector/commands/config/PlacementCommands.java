@@ -2,6 +2,7 @@ package com.rhett.multivillageselector.commands.config;
 
 import com.mojang.brigadier.context.CommandContext;
 import com.rhett.multivillageselector.MVSCommon;
+import com.rhett.multivillageselector.config.ExclusionZone;
 import com.rhett.multivillageselector.config.MVSConfig;
 import com.rhett.multivillageselector.util.PlacementResolver;
 import net.minecraft.ChatFormatting;
@@ -97,6 +98,7 @@ public class PlacementCommands {
                         String spreadType = randomSpread.spreadType() == RandomSpreadType.TRIANGULAR
                             ? "triangular" : "linear";
                         int salt = getSaltViaMixin(placement);
+                        var exclusionZone = getExclusionZoneViaMixin(placement);
 
                         final String finalSetId = setId;
                         final int finalSpacing = spacing;
@@ -104,12 +106,16 @@ public class PlacementCommands {
                         final int finalSalt = salt;
                         final String finalSpreadType = spreadType;
 
+                        String exclusionInfo = exclusionZone != null
+                            ? ", exclusion_zone=" + exclusionZone.otherSet + ":" + exclusionZone.chunkCount
+                            : "";
+
                         source.sendSuccess(() -> Component.literal("  ✓ " + finalSetId + ": ")
                             .withStyle(ChatFormatting.GREEN)
                             .append(Component.literal("spacing=" + finalSpacing +
                                 ", separation=" + finalSeparation +
                                 ", salt=" + finalSalt +
-                                ", spread_type=" + finalSpreadType)
+                                ", spread_type=" + finalSpreadType + exclusionInfo)
                                 .withStyle(ChatFormatting.GRAY)), false);
 
                         placementContent.append("    \"").append(setId).append("\": {\n");
@@ -117,6 +123,15 @@ public class PlacementCommands {
                         placementContent.append("      separation: ").append(separation).append(",\n");
                         placementContent.append("      salt: ").append(salt).append(",\n");
                         placementContent.append("      spreadType: \"").append(spreadType).append("\",\n");
+
+                        // Include exclusion_zone if present in registry
+                        if (exclusionZone != null) {
+                            placementContent.append("      exclusion_zone: {\n");
+                            placementContent.append("        other_set: \"").append(exclusionZone.otherSet).append("\",\n");
+                            placementContent.append("        chunk_count: ").append(exclusionZone.chunkCount).append(",\n");
+                            placementContent.append("      },\n");
+                        }
+
                         placementContent.append("    },\n");
                     } else {
                         notFound++;
@@ -334,6 +349,30 @@ public class PlacementCommands {
      */
     private static int getSaltViaMixin(StructurePlacement placement) {
         return ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) placement).invokeSalt();
+    }
+
+    /**
+     * Get exclusion zone via mixin accessor.
+     * Converts vanilla's ExclusionZone to our config ExclusionZone format.
+     */
+    private static ExclusionZone getExclusionZoneViaMixin(StructurePlacement placement) {
+        var vanillaZone = ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) placement)
+            .invokeExclusionZone();
+
+        if (vanillaZone.isEmpty()) {
+            return null;
+        }
+
+        StructurePlacement.ExclusionZone zone = vanillaZone.get();
+        String otherSetId = zone.otherSet().unwrapKey()
+            .map(k -> k.location().toString())
+            .orElse(null);
+
+        if (otherSetId == null) {
+            return null;
+        }
+
+        return new ExclusionZone(otherSetId, zone.chunkCount());
     }
 
     /**

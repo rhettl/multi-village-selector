@@ -1,5 +1,6 @@
 package com.rhett.multivillageselector.util;
 
+import com.rhett.multivillageselector.config.ExclusionZone;
 import com.rhett.multivillageselector.config.MVSConfig;
 import com.rhett.multivillageselector.config.PlacementRule;
 import net.minecraft.core.Registry;
@@ -12,6 +13,7 @@ import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Resolves effective placement values by merging config with registry defaults.
@@ -29,28 +31,33 @@ public class PlacementResolver {
         public final LocateHelper.SpreadType spreadType;
         public final String strategy;
         public final Vec3i locateOffset; // Offset added to chunk origin for /locate results
+        public final ExclusionZone exclusionZone; // Structures to avoid, or null if none
 
         // Source tracking for debugging
         public final String spacingSource;
         public final String separationSource;
         public final String saltSource;
         public final String spreadTypeSource;
+        public final String exclusionZoneSource;
 
         public ResolvedPlacement(int spacing, int separation, int salt,
                                   LocateHelper.SpreadType spreadType, String strategy,
-                                  Vec3i locateOffset,
+                                  Vec3i locateOffset, ExclusionZone exclusionZone,
                                   String spacingSource, String separationSource,
-                                  String saltSource, String spreadTypeSource) {
+                                  String saltSource, String spreadTypeSource,
+                                  String exclusionZoneSource) {
             this.spacing = spacing;
             this.separation = separation;
             this.salt = salt;
             this.spreadType = spreadType;
             this.strategy = strategy;
             this.locateOffset = locateOffset != null ? locateOffset : Vec3i.ZERO;
+            this.exclusionZone = exclusionZone;
             this.spacingSource = spacingSource;
             this.separationSource = separationSource;
             this.saltSource = saltSource;
             this.spreadTypeSource = spreadTypeSource;
+            this.exclusionZoneSource = exclusionZoneSource;
         }
 
         /**
@@ -67,8 +74,14 @@ public class PlacementResolver {
 
         @Override
         public String toString() {
-            return String.format("ResolvedPlacement{spacing=%d (%s), separation=%d (%s), salt=%d (%s), spreadType=%s (%s), locateOffset=%s}",
-                spacing, spacingSource, separation, separationSource, salt, saltSource, spreadType, spreadTypeSource, locateOffset);
+            StringBuilder sb = new StringBuilder();
+            sb.append(String.format("ResolvedPlacement{spacing=%d (%s), separation=%d (%s), salt=%d (%s), spreadType=%s (%s), locateOffset=%s",
+                spacing, spacingSource, separation, separationSource, salt, saltSource, spreadType, spreadTypeSource, locateOffset));
+            if (exclusionZone != null) {
+                sb.append(String.format(", exclusionZone=%s (%s)", exclusionZone, exclusionZoneSource));
+            }
+            sb.append("}");
+            return sb.toString();
         }
     }
 
@@ -198,8 +211,22 @@ public class PlacementResolver {
         // locateOffset always comes from registry (not configurable)
         Vec3i locateOffset = (registryValues != null) ? registryValues.locateOffset : Vec3i.ZERO;
 
+        // Resolve exclusion zone with priority: config > registry > null
+        ExclusionZone exclusionZone;
+        String exclusionZoneSource;
+        if (configRule != null && configRule.exclusionZone != null) {
+            exclusionZone = configRule.exclusionZone;
+            exclusionZoneSource = "config";
+        } else if (registryValues != null && registryValues.exclusionZone != null) {
+            exclusionZone = registryValues.exclusionZone;
+            exclusionZoneSource = "registry";
+        } else {
+            exclusionZone = null;
+            exclusionZoneSource = "none";
+        }
+
         ResolvedPlacement placement = new ResolvedPlacement(spacing, separation, salt, spreadType, strategy,
-            locateOffset, spacingSource, separationSource, saltSource, spreadTypeSource);
+            locateOffset, exclusionZone, spacingSource, separationSource, saltSource, spreadTypeSource, exclusionZoneSource);
 
         return new ResolutionResult(placement, warnings);
     }
@@ -228,18 +255,21 @@ public class PlacementResolver {
         final int salt;
         final boolean triangular;
         final Vec3i locateOffset;
+        final ExclusionZone exclusionZone;
 
-        RegistryPlacement(int spacing, int separation, int salt, boolean triangular, Vec3i locateOffset) {
+        RegistryPlacement(int spacing, int separation, int salt, boolean triangular,
+                         Vec3i locateOffset, ExclusionZone exclusionZone) {
             this.spacing = spacing;
             this.separation = separation;
             this.salt = salt;
             this.triangular = triangular;
             this.locateOffset = locateOffset;
+            this.exclusionZone = exclusionZone;
         }
     }
 
     /**
-     * Extract placement values from registry using reflection for salt.
+     * Extract placement values from registry using mixin accessors.
      */
     private static RegistryPlacement getFromRegistry(String structureSetId, Registry<StructureSet> registry) {
         try {
@@ -257,11 +287,12 @@ public class PlacementResolver {
                 int separation = randomSpread.separation();
                 boolean triangular = randomSpread.spreadType() == RandomSpreadType.TRIANGULAR;
 
-                // Salt and locateOffset are protected in parent class, use mixin accessor
+                // Salt, locateOffset, and exclusionZone are protected in parent class, use mixin accessor
                 int salt = getSaltViaMixin(placement);
                 Vec3i locateOffset = getLocateOffsetViaMixin(placement);
+                ExclusionZone exclusionZone = getExclusionZoneViaMixin(placement);
 
-                return new RegistryPlacement(spacing, separation, salt, triangular, locateOffset);
+                return new RegistryPlacement(spacing, separation, salt, triangular, locateOffset, exclusionZone);
             }
 
             // Non-RandomSpread placements not supported yet
@@ -288,5 +319,30 @@ public class PlacementResolver {
      */
     private static Vec3i getLocateOffsetViaMixin(StructurePlacement placement) {
         return ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) placement).invokeLocateOffset();
+    }
+
+    /**
+     * Get exclusion zone via mixin accessor (it's protected in StructurePlacement).
+     * Converts vanilla's ExclusionZone to our config ExclusionZone format.
+     */
+    private static ExclusionZone getExclusionZoneViaMixin(StructurePlacement placement) {
+        Optional<StructurePlacement.ExclusionZone> vanillaZone =
+            ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) placement).invokeExclusionZone();
+
+        if (vanillaZone.isEmpty()) {
+            return null;
+        }
+
+        StructurePlacement.ExclusionZone zone = vanillaZone.get();
+        // Extract other_set ID from the Holder
+        String otherSetId = zone.otherSet().unwrapKey()
+            .map(k -> k.location().toString())
+            .orElse(null);
+
+        if (otherSetId == null) {
+            return null;
+        }
+
+        return new ExclusionZone(otherSetId, zone.chunkCount());
     }
 }

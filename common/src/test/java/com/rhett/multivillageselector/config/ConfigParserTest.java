@@ -766,4 +766,246 @@ class ConfigParserTest {
 
         assertEquals("triangular", result.placement.get("minecraft:villages").spreadType);
     }
+
+    // ============================================================
+    // EXCLUSION ZONE TESTS
+    // ============================================================
+
+    @Test
+    @DisplayName("Exclusion zone: valid config")
+    void testExclusionZone_ValidConfig() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  exclusion_zone: {
+                    other_set: "minecraft:villages",
+                    chunk_count: 10
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        PlacementRule rule = result.placement.get("minecraft:pillager_outposts");
+        assertNotNull(rule);
+        assertNotNull(rule.exclusionZone);
+        assertEquals("minecraft:villages", rule.exclusionZone.otherSet);
+        assertEquals(10, rule.exclusionZone.chunkCount);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: missing other_set generates warning")
+    void testExclusionZone_MissingOtherSet() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  exclusion_zone: {
+                    chunk_count: 10
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("exclusion_zone") && w.contains("other_set")));
+        assertNull(result.placement.get("minecraft:pillager_outposts").exclusionZone);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: missing chunk_count generates warning")
+    void testExclusionZone_MissingChunkCount() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  exclusion_zone: {
+                    other_set: "minecraft:villages"
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("exclusion_zone") && w.contains("chunk_count")));
+        assertNull(result.placement.get("minecraft:pillager_outposts").exclusionZone);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: chunk_count too low generates warning")
+    void testExclusionZone_ChunkCountTooLow() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  exclusion_zone: {
+                    other_set: "minecraft:villages",
+                    chunk_count: 0
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("chunk_count") && w.contains("invalid")));
+        assertNull(result.placement.get("minecraft:pillager_outposts").exclusionZone);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: chunk_count too high generates warning")
+    void testExclusionZone_ChunkCountTooHigh() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  exclusion_zone: {
+                    other_set: "minecraft:villages",
+                    chunk_count: 17
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("chunk_count") && w.contains("invalid")));
+        assertNull(result.placement.get("minecraft:pillager_outposts").exclusionZone);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: empty other_set generates warning")
+    void testExclusionZone_EmptyOtherSet() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  exclusion_zone: {
+                    other_set: "",
+                    chunk_count: 10
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("other_set") && w.contains("empty")));
+        assertNull(result.placement.get("minecraft:pillager_outposts").exclusionZone);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: boundary values (1 and 16) accepted")
+    void testExclusionZone_BoundaryValues() throws ConfigParser.ConfigParseException {
+        // Test chunk_count = 1
+        String json1 = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "test:set1": {
+                  exclusion_zone: { other_set: "minecraft:villages", chunk_count: 1 }
+                }
+              }
+            }
+            """;
+
+        ConfigState result1 = ConfigParser.parse(json1);
+        assertEquals(1, result1.placement.get("test:set1").exclusionZone.chunkCount);
+
+        // Test chunk_count = 16
+        String json16 = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "test:set2": {
+                  exclusion_zone: { other_set: "minecraft:villages", chunk_count: 16 }
+                }
+              }
+            }
+            """;
+
+        ConfigState result16 = ConfigParser.parse(json16);
+        assertEquals(16, result16.placement.get("test:set2").exclusionZone.chunkCount);
+    }
+
+    @Test
+    @DisplayName("Exclusion zone: with other placement fields")
+    void testExclusionZone_WithOtherFields() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:pillager_outposts": {
+                  spacing: 64,
+                  separation: 8,
+                  salt: 165745296,
+                  spreadType: "linear",
+                  exclusion_zone: {
+                    other_set: "minecraft:villages",
+                    chunk_count: 10
+                  }
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        PlacementRule rule = result.placement.get("minecraft:pillager_outposts");
+        assertEquals(64, rule.spacing);
+        assertEquals(8, rule.separation);
+        assertEquals(165745296, rule.salt);
+        assertEquals("linear", rule.spreadType);
+        assertNotNull(rule.exclusionZone);
+        assertEquals("minecraft:villages", rule.exclusionZone.otherSet);
+        assertEquals(10, rule.exclusionZone.chunkCount);
+    }
 }

@@ -13,13 +13,14 @@ import com.rhett.multivillageselector.util.LocateHelper;
  * - salt must be a valid integer if specified
  * - spreadType must be a valid SpreadType name if specified
  * - strategy must be a valid strategy name if specified
+ * - exclusionZone must have valid other_set and chunk_count if specified
  */
 public class PlacementRule {
 
     /** Grid cell size in chunks. Null = inherit from registry. */
     public final Integer spacing;
 
-    /** Exclusion zone size in chunks. Null = inherit from registry. */
+    /** Separation between structures in chunks. Null = inherit from registry. */
     public final Integer separation;
 
     /** Random seed modifier. Null = inherit from registry. */
@@ -31,13 +32,23 @@ public class PlacementRule {
     /** Placement strategy type. Null = default to "random_spread". */
     public final String strategy;
 
+    /** Exclusion zone - avoid spawning near another structure set. Null = inherit from registry. */
+    public final ExclusionZone exclusionZone;
+
     public PlacementRule(Integer spacing, Integer separation, Integer salt,
-                         String spreadType, String strategy) {
+                         String spreadType, String strategy, ExclusionZone exclusionZone) {
         this.spacing = spacing;
         this.separation = separation;
         this.salt = salt;
         this.spreadType = spreadType;
         this.strategy = strategy;
+        this.exclusionZone = exclusionZone;
+    }
+
+    /** Legacy constructor without exclusionZone for backwards compatibility */
+    public PlacementRule(Integer spacing, Integer separation, Integer salt,
+                         String spreadType, String strategy) {
+        this(spacing, separation, salt, spreadType, strategy, null);
     }
 
     /**
@@ -52,7 +63,7 @@ public class PlacementRule {
      */
     public boolean isFullyInherited() {
         return spacing == null && separation == null && salt == null
-            && spreadType == null && strategy == null;
+            && spreadType == null && strategy == null && exclusionZone == null;
     }
 
     /**
@@ -102,6 +113,7 @@ public class PlacementRule {
         private Integer salt;
         private String spreadType;
         private String strategy;
+        private ExclusionZone exclusionZone;
 
         public Builder spacing(Integer spacing) {
             this.spacing = spacing;
@@ -128,8 +140,13 @@ public class PlacementRule {
             return this;
         }
 
+        public Builder exclusionZone(ExclusionZone exclusionZone) {
+            this.exclusionZone = exclusionZone;
+            return this;
+        }
+
         public PlacementRule build() {
-            return new PlacementRule(spacing, separation, salt, spreadType, strategy);
+            return new PlacementRule(spacing, separation, salt, spreadType, strategy, exclusionZone);
         }
     }
 }

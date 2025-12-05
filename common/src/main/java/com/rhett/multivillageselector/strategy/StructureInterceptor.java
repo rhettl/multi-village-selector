@@ -1,13 +1,16 @@
 package com.rhett.multivillageselector.strategy;
 
+import com.rhett.multivillageselector.config.ExclusionZone;
 import com.rhett.multivillageselector.config.MVSConfig;
 import com.rhett.multivillageselector.MVSCommon;
 import com.rhett.multivillageselector.profiler.ChunkGenerationProfiler;
+import com.rhett.multivillageselector.util.PlacementResolver;
 
 import net.minecraft.core.Holder;
 import net.minecraft.core.Registry;
 import net.minecraft.core.SectionPos;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.StructureManager;
 import net.minecraft.world.level.chunk.ChunkAccess;
@@ -125,6 +128,14 @@ public class StructureInterceptor {
                         structureSetId, chunkPos.x, chunkPos.z, worldX, worldZ);
                 }
                 ChunkGenerationProfiler.recordMVSSpacingPassed();
+
+                // Check exclusion zone (avoid spawning near excluded structure sets)
+                if (!checkExclusionZone(structureSetId, chunkPos, state, registryAccess)) {
+                    if (MVSConfig.debugLogging) {
+                        MVSCommon.LOGGER.info("[MVS]   ✗ Exclusion zone check failed - too close to excluded structure");
+                    }
+                    continue; // Too close to excluded structure set
+                }
 
                 // Check biome frequency (spawn density control)
                 if (!rollBiomeFrequency(generator, chunk, registryAccess, state)) {
@@ -289,5 +300,75 @@ public class StructureInterceptor {
 
         double roll = random.nextDouble();
         return roll < frequency;
+    }
+
+    /**
+     * Checks if this structure set's exclusion zone is satisfied.
+     * Returns false if the excluded structure set has a structure within range.
+     *
+     * Example: If minecraft:villages has exclusion_zone: {other_set: "minecraft:monuments", chunk_count: 5}
+     * then this returns false if there's a monument within 5 chunks.
+     *
+     * @param structureSetId The structure set being spawned
+     * @param chunkPos Current chunk position
+     * @param state Chunk generator structure state
+     * @param registryAccess Registry access for lookups
+     * @return true if exclusion zone is satisfied (ok to spawn), false if forbidden
+     */
+    private static boolean checkExclusionZone(
+            String structureSetId,
+            ChunkPos chunkPos,
+            ChunkGeneratorStructureState state,
+            net.minecraft.core.RegistryAccess registryAccess) {
+
+        // Resolve placement to get exclusion zone (from config or registry)
+        Registry<StructureSet> structureSetRegistry = registryAccess.registryOrThrow(Registries.STRUCTURE_SET);
+        PlacementResolver.ResolvedPlacement resolved = PlacementResolver.resolve(structureSetId, structureSetRegistry);
+
+        // No exclusion zone = always ok to spawn
+        if (resolved.exclusionZone == null) {
+            return true;
+        }
+
+        ExclusionZone exclusionZone = resolved.exclusionZone;
+
+        // Skip check if the other_set is blocked (won't generate anyway)
+        if (MVSConfig.blockStructureSets.contains(exclusionZone.otherSet)) {
+            if (MVSConfig.debugLogging) {
+                MVSCommon.LOGGER.info("[MVS]   Exclusion zone skipped: '{}' is blocked",
+                    exclusionZone.otherSet);
+            }
+            return true; // OK to spawn - blocked set won't exist
+        }
+
+        // Get the other structure set to check
+        ResourceLocation otherSetLoc = ResourceLocation.parse(exclusionZone.otherSet);
+        Holder<StructureSet> otherSetHolder = structureSetRegistry.getHolder(otherSetLoc).orElse(null);
+
+        if (otherSetHolder == null) {
+            // Other set not found - can't check, allow spawn
+            if (MVSConfig.debugLogging) {
+                MVSCommon.LOGGER.warn("[MVS] Exclusion zone references unknown structure set: {}",
+                    exclusionZone.otherSet);
+            }
+            return true;
+        }
+
+        // Use vanilla's hasStructureChunkInRange to check if other structure is nearby
+        // Our mixin will intercept this if the other set is MVS-managed
+        boolean hasStructureNearby = state.hasStructureChunkInRange(
+            otherSetHolder,
+            chunkPos.x,
+            chunkPos.z,
+            exclusionZone.chunkCount
+        );
+
+        if (hasStructureNearby && MVSConfig.debugLogging) {
+            MVSCommon.LOGGER.info("[MVS]   Exclusion zone: '{}' found within {} chunks of '{}'",
+                exclusionZone.otherSet, exclusionZone.chunkCount, structureSetId);
+        }
+
+        // If other structure is nearby, exclusion zone is NOT satisfied (return false = don't spawn)
+        return !hasStructureNearby;
     }
 }

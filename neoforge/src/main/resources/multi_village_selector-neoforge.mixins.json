@@ -5,6 +5,8 @@
   "mixins": [
     "ChunkGeneratorMixin",
     "ChunkGeneratorProfilerMixin",
+    "ChunkGeneratorStructureStateMixin",
+    "LocateCommandMixin",
     "StructurePlacementAccessor"
   ],
   "injectors": {
