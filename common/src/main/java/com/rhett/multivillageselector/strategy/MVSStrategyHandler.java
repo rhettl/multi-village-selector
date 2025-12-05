@@ -67,8 +67,19 @@ public class MVSStrategyHandler {
         ChunkPos chunkPos = chunk.getPos();
         SectionPos sectionPos = SectionPos.bottomOf(chunk);
 
+        // Enhanced debug logging for prediction vs generation comparison
+        if (MVSConfig.debugLogging) {
+            int worldX = chunkPos.getMinBlockX() + 8;
+            int worldZ = chunkPos.getMinBlockZ() + 8;
+            MVSCommon.LOGGER.info("[MVS] === GENERATION at chunk [{}, {}] world [{}, {}] ===",
+                chunkPos.x, chunkPos.z, worldX, worldZ);
+        }
+
         // Check if any MVS structure already exists at this location
         if (anyMVSStructureExists(structureManager, registryAccess, sectionPos, chunk)) {
+            if (MVSConfig.debugLogging) {
+                MVSCommon.LOGGER.info("[MVS]   BLOCKED: MVS structure already exists at this chunk");
+            }
             return Result.noGenerate("MVS structure already exists at chunk [" + chunkPos.x + "," + chunkPos.z + "]");
         }
 
@@ -83,14 +94,35 @@ public class MVSStrategyHandler {
         );
 
         // Get biome from BiomeSource
+        // getBaseHeight() returns Y of first AIR block above surface
+        // Vanilla uses getFirstFreeHeight() which equals getBaseHeight(), so we use surfaceY directly
+        // (Previously used +1, but that was incorrect)
+        int structureY = surfaceY;
         Holder<Biome> biomeHolder = generator.getBiomeSource().getNoiseBiome(
-            worldX >> 2, surfaceY >> 2, worldZ >> 2, state.randomState().sampler()
+            worldX >> 2, structureY >> 2, worldZ >> 2, state.randomState().sampler()
         );
 
+        // Enhanced debug: log biome sampling details
+        if (MVSConfig.debugLogging) {
+            String biomeId = biomeHolder.unwrapKey()
+                .map(k -> k.location().toString())
+                .orElse("unknown");
+            MVSCommon.LOGGER.info("[MVS]   BiomeSample: block[{},{},{}] heightmapY={} structureY={} quartY={} -> {}",
+                worldX, surfaceY, worldZ, surfaceY, structureY, structureY >> 2, biomeId);
+        }
+
         // Use MVS to filter by biome tags and select structure
+        long seed = state.getLevelSeed();
         Random random = new Random(
-            state.getLevelSeed() + chunkPos.x * 341873128712L + chunkPos.z * 132897987541L
+            seed + chunkPos.x * 341873128712L + chunkPos.z * 132897987541L
         );
+
+        // Enhanced debug: log random seed components
+        if (MVSConfig.debugLogging) {
+            long randomSeed = seed + chunkPos.x * 341873128712L + chunkPos.z * 132897987541L;
+            MVSCommon.LOGGER.info("[MVS]   Random: seed={}, chunkX={}, chunkZ={}, combined={}",
+                seed, chunkPos.x, chunkPos.z, randomSeed);
+        }
 
         MVSConfig.ConfiguredStructure selected = MVSConfig.selectStructure(random, biomeHolder);
 

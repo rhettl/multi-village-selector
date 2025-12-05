@@ -111,6 +111,7 @@ public class StructureInterceptor {
                 // Check placement rules (spacing/separation)
                 StructureSet structureSet = structureSetHolder.value();
                 StructurePlacement placement = structureSet.placement();
+
                 if (!placement.isStructureChunk(state, chunkPos.x, chunkPos.z)) {
                     // Don't log every failed spacing check - too noisy
                     continue;
@@ -264,9 +265,12 @@ public class StructureInterceptor {
             state.randomState()
         );
 
+        // Sample biome ONE BLOCK ABOVE surface (where structures sit, not the ground block)
+        // This matches vanilla's biome validation and handles 3D biome boundaries (e.g., Terralith)
+        int structureY = surfaceY + 1;
         net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> biomeHolder =
             generator.getBiomeSource().getNoiseBiome(
-                centerX >> 2, surfaceY >> 2, centerZ >> 2,
+                centerX >> 2, structureY >> 2, centerZ >> 2,
                 state.randomState().sampler()
             );
 

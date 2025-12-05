@@ -33,6 +33,12 @@ public class ConfigState {
     // Biome frequency (controls spawn density per biome/pattern)
     public final Map<String, Double> biomeFrequency;
 
+    // Relaxed biome validation (bypasses vanilla's placement-point biome check for 3D biome mods)
+    public final boolean relaxedBiomeValidation;
+
+    // Placement rules (per-structure-set placement configuration)
+    public final Map<String, PlacementRule> placement;
+
     // Validation warnings (non-fatal issues found during parsing)
     public final List<String> validationWarnings;
 
@@ -51,6 +57,8 @@ public class ConfigState {
             List<MVSConfig.ConfiguredStructure> structurePool,
             List<String> blacklistedStructures,
             Map<String, Double> biomeFrequency,
+            boolean relaxedBiomeValidation,
+            Map<String, PlacementRule> placement,
             List<String> validationWarnings) {
 
         this.enabled = enabled;
@@ -65,6 +73,8 @@ public class ConfigState {
         this.structurePool = Collections.unmodifiableList(List.copyOf(structurePool));
         this.blacklistedStructures = Collections.unmodifiableList(List.copyOf(blacklistedStructures));
         this.biomeFrequency = Collections.unmodifiableMap(Map.copyOf(biomeFrequency));
+        this.relaxedBiomeValidation = relaxedBiomeValidation;
+        this.placement = Collections.unmodifiableMap(Map.copyOf(placement));
         this.validationWarnings = Collections.unmodifiableList(List.copyOf(validationWarnings));
     }
 
@@ -82,6 +92,8 @@ public class ConfigState {
         private List<MVSConfig.ConfiguredStructure> structurePool = List.of();
         private List<String> blacklistedStructures = List.of();
         private Map<String, Double> biomeFrequency = Map.of();
+        private boolean relaxedBiomeValidation = false;
+        private Map<String, PlacementRule> placement = Map.of();
         private List<String> validationWarnings = List.of();
 
         public Builder enabled(boolean enabled) {
@@ -134,6 +146,16 @@ public class ConfigState {
             return this;
         }
 
+        public Builder relaxedBiomeValidation(boolean relaxedBiomeValidation) {
+            this.relaxedBiomeValidation = relaxedBiomeValidation;
+            return this;
+        }
+
+        public Builder placement(Map<String, PlacementRule> placement) {
+            this.placement = placement;
+            return this;
+        }
+
         public Builder validationWarnings(List<String> validationWarnings) {
             this.validationWarnings = validationWarnings;
             return this;
@@ -144,7 +166,7 @@ public class ConfigState {
                 enabled, debugLogging, debugCmd, showLaunchMessage,
                 blockStructureSets, interceptStructureSets,
                 structurePoolRaw, structurePool, blacklistedStructures,
-                biomeFrequency, validationWarnings
+                biomeFrequency, relaxedBiomeValidation, placement, validationWarnings
             );
         }
     }

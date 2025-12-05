@@ -5,7 +5,9 @@
   "refmap": "multivillageselector-common-refmap.json",
   "mixins": [
     "ChunkGeneratorMixin",
-    "ChunkGeneratorProfilerMixin"
+    "ChunkGeneratorProfilerMixin",
+    "LocateCommandMixin",
+    "StructurePlacementAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

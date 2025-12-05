@@ -32,11 +32,12 @@ class BiomeRuleResolverTest {
 
     @BeforeEach
     void setUp() {
-        // Save original pool
+        // Save original pool (copy to mutable list in case original is immutable)
         originalPool = new ArrayList<>(MVSConfig.structurePool);
 
-        // Clear pool for tests
-        MVSConfig.structurePool.clear();
+        // Replace pool with fresh mutable list for tests
+        // (Can't call .clear() because previous tests may have set it to immutable List.of())
+        MVSConfig.structurePool = new ArrayList<>();
 
         // Setup mocks
         mockRegistryAccess = mock(RegistryAccess.class);
@@ -47,8 +48,7 @@ class BiomeRuleResolverTest {
     @AfterEach
     void tearDown() {
         // Restore original pool
-        MVSConfig.structurePool.clear();
-        MVSConfig.structurePool.addAll(originalPool);
+        MVSConfig.structurePool = new ArrayList<>(originalPool);
     }
 
     // ============================================================

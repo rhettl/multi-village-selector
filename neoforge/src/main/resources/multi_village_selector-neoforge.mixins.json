@@ -4,7 +4,8 @@
   "compatibilityLevel": "JAVA_21",
   "mixins": [
     "ChunkGeneratorMixin",
-    "ChunkGeneratorProfilerMixin"
+    "ChunkGeneratorProfilerMixin",
+    "StructurePlacementAccessor"
   ],
   "injectors": {
     "defaultRequire": 1

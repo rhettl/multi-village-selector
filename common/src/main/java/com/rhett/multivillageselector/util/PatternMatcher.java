@@ -93,12 +93,8 @@ public class PatternMatcher {
         T bestValue = defaultValue;
         int maxSpecificity = Integer.MIN_VALUE;  // Allow negative specificities (e.g., "*:*" = -10)
 
-        // DEBUG: log biome being checked (very spammy)
-        if (com.rhett.multivillageselector.config.MVSConfig.debugLogging) {
-            com.rhett.multivillageselector.MVSCommon.LOGGER.info(
-                "[MVS] Debug: Pattern matching for biome '{}' ({} tags)",
-                biomeLocation, stringsToCheck.size());
-        }
+        // Note: Debug logging removed from hot loop in v0.4.0 (caused 30-second freezes)
+        // Pattern matching is now only used as fallback; main path uses O(1) lookup
 
         for (Map.Entry<String, T> entry : patternMap.entrySet()) {
             String pattern = entry.getKey();
@@ -108,13 +104,6 @@ public class PatternMatcher {
             for (String biomeString : stringsToCheck) {
                 if (matches(biomeString, pattern)) {
                     int specificity = getSpecificity(pattern);
-
-                    // DEBUG: log the match (very spammy)
-                    if (com.rhett.multivillageselector.config.MVSConfig.debugLogging) {
-                        com.rhett.multivillageselector.MVSCommon.LOGGER.info(
-                            "[MVS] Debug: Pattern '{}' matched '{}' (specificity: {})",
-                            pattern, biomeString, specificity);
-                    }
 
                     // Higher specificity wins
                     if (specificity > maxSpecificity) {

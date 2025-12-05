@@ -338,18 +338,18 @@ public class StructureCommands {
             source.sendSuccess(() -> Component.literal("Wrote " + finalFilteredCount + " structures to file" + filterMsg)
                 .withStyle(ChatFormatting.GREEN), false);
 
-            // Clickable file path
+            // Clickable file path (copy to clipboard since OPEN_FILE not allowed by server)
             String filePath = outputFile.toAbsolutePath().toString();
             Component fileLink = Component.literal("  " + filePath)
                 .withStyle(net.minecraft.network.chat.Style.EMPTY
                     .withColor(ChatFormatting.AQUA)
                     .withUnderlined(true)
                     .withClickEvent(new net.minecraft.network.chat.ClickEvent(
-                        net.minecraft.network.chat.ClickEvent.Action.OPEN_FILE,
+                        net.minecraft.network.chat.ClickEvent.Action.COPY_TO_CLIPBOARD,
                         filePath))
                     .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
                         net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                        Component.literal("Click to open file"))));
+                        Component.literal("Click to copy path"))));
 
             source.sendSuccess(() -> fileLink, false);
 

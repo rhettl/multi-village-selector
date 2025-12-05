@@ -4,7 +4,9 @@ import com.rhett.multivillageselector.MVSCommon;
 import com.rhett.multivillageselector.commands.biome.BiomeCommands;
 import com.rhett.multivillageselector.commands.debug.DebugCommands;
 import com.rhett.multivillageselector.commands.generate.GenerateCommands;
+import com.rhett.multivillageselector.commands.locate.LocateCommands;
 import com.rhett.multivillageselector.commands.model.CommandModels.*;
+import com.rhett.multivillageselector.commands.config.PlacementCommands;
 import com.rhett.multivillageselector.commands.config.ReloadCommands;
 import com.rhett.multivillageselector.commands.profiler.ProfilerCommands;
 import com.rhett.multivillageselector.commands.structure.NearbyCommands;
@@ -72,6 +74,9 @@ public class MVSCommands {
             .then(Commands.literal("config")
                 .then(Commands.literal("reload")
                     .executes(ReloadCommands::execute)
+                )
+                .then(Commands.literal("fill-placements")
+                    .executes(PlacementCommands::executeFillPlacements)
                 )
             )
             .then(Commands.literal("biome")
@@ -149,6 +154,30 @@ public class MVSCommands {
                         )
                     )
                 )
+                .then(Commands.literal("predict")
+                    .executes(ctx -> com.rhett.multivillageselector.commands.structure.PredictCommands.executePaginated(ctx, 1))
+                    .then(Commands.literal("file")
+                        .executes(com.rhett.multivillageselector.commands.structure.PredictCommands::executeFile)
+                    )
+                    .then(Commands.literal("new")
+                        .executes(com.rhett.multivillageselector.commands.structure.PredictCommands::executeNew)
+                    )
+                    .then(Commands.argument("page", com.mojang.brigadier.arguments.IntegerArgumentType.integer(1))
+                        .executes(ctx -> com.rhett.multivillageselector.commands.structure.PredictCommands.executePaginated(ctx,
+                            com.mojang.brigadier.arguments.IntegerArgumentType.getInteger(ctx, "page")))
+                    )
+                )
+            )
+            .then(Commands.literal("locate")
+                .then(Commands.argument("structure", net.minecraft.commands.arguments.ResourceLocationArgument.id())
+                    .suggests(LocateCommands.STRUCTURE_SUGGESTIONS)
+                    .executes(ctx -> LocateCommands.execute(ctx,
+                        net.minecraft.commands.arguments.ResourceLocationArgument.getId(ctx, "structure").toString()))
+                    .then(Commands.literal("more")
+                        .executes(ctx -> LocateCommands.executeMore(ctx,
+                            net.minecraft.commands.arguments.ResourceLocationArgument.getId(ctx, "structure").toString()))
+                    )
+                )
             );
 
         // Conditionally add debug commands if debug_cmd is enabled
@@ -159,6 +188,13 @@ public class MVSCommands {
                     .executes(ctx -> DebugCommands.executeModScan(ctx, false))
                     .then(Commands.literal("all")
                         .executes(ctx -> DebugCommands.executeModScan(ctx, true))
+                    )
+                )
+                .then(Commands.literal("placement")
+                    .executes(ctx -> PlacementCommands.executeDebugPlacement(ctx, null))
+                    .then(Commands.argument("structure_set", StringArgumentType.greedyString())
+                        .executes(ctx -> PlacementCommands.executeDebugPlacement(ctx,
+                            StringArgumentType.getString(ctx, "structure_set")))
                     )
                 )
                 .then(Commands.literal("profiler")
@@ -200,6 +236,12 @@ public class MVSCommands {
         source.sendSuccess(() -> Component.literal("/mvs generate")
             .withStyle(ChatFormatting.AQUA)
             .append(Component.literal(" - Generate config from installed mods")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        // /mvs config fill-placements
+        source.sendSuccess(() -> Component.literal("/mvs config fill-placements")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Write registry placement values to config")
                 .withStyle(ChatFormatting.GRAY)), false);
 
         source.sendSuccess(() -> Component.literal(""), false);
@@ -250,11 +292,19 @@ public class MVSCommands {
 
         source.sendSuccess(() -> Component.literal(""), false);
 
+        // /mvs locate
+        source.sendSuccess(() -> Component.literal("/mvs locate <structure> [more]")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Find MVS spawn locations")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal(""), false);
+
         // Debug commands note
         if (MVSConfig.debugCmd) {
             source.sendSuccess(() -> Component.literal("/mvs debug")
                 .withStyle(ChatFormatting.AQUA)
-                .append(Component.literal(" - Debug commands (mod-scan, profiler)")
+                .append(Component.literal(" - Debug commands (mod-scan, placement, profiler)")
                     .withStyle(ChatFormatting.GRAY)), false);
             source.sendSuccess(() -> Component.literal(""), false);
         }
@@ -335,13 +385,8 @@ public class MVSCommands {
                             int spacing = randomSpread.spacing();
                             int separation = randomSpread.separation();
 
-                            // Get salt via reflection
-                            int salt = 0;
-                            try {
-                                var saltField = net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement.class.getDeclaredField("salt");
-                                saltField.setAccessible(true);
-                                salt = (int) saltField.get(randomSpread);
-                            } catch (Exception ignored) {}
+                            // Get salt via mixin accessor (cross-platform)
+                            int salt = ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) randomSpread).invokeSalt();
 
                             final int finalSalt = salt;
                             final int finalSpacing = spacing;
@@ -453,15 +498,18 @@ public class MVSCommands {
                 .append(Component.literal("local/mvs/multivillageselector.json5")
                     .withStyle(ChatFormatting.AQUA)
                     .withStyle(style -> style.withClickEvent(new net.minecraft.network.chat.ClickEvent(
-                        net.minecraft.network.chat.ClickEvent.Action.OPEN_FILE,
-                        outputFile.toAbsolutePath().toString())))), false);
+                        net.minecraft.network.chat.ClickEvent.Action.COPY_TO_CLIPBOARD,
+                        outputFile.toAbsolutePath().toString()))
+                        .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
+                            net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
+                            Component.literal("Click to copy path"))))), false);
 
             source.sendSuccess(() -> Component.literal(""), false);
 
             // Next steps instructions
             source.sendSuccess(() -> Component.literal("💡 What to do next:")
                 .withStyle(ChatFormatting.GOLD), false);
-            source.sendSuccess(() -> Component.literal("  1. Click the file link above to review the config")
+            source.sendSuccess(() -> Component.literal("  1. Open the file above to review the config")
                 .withStyle(ChatFormatting.GRAY), false);
             source.sendSuccess(() -> Component.literal("  2. Adjust village weights if desired (higher = more common)")
                 .withStyle(ChatFormatting.GRAY), false);
@@ -860,6 +908,43 @@ public class MVSCommands {
         lines.add("    // \"#terralith:*\": 0.85,            // All Terralith biomes: 85% spawn rate");
         lines.add("  },");
         lines.add("");
+        lines.add("  // v0.4.0: Override structure placement (spacing, separation, salt, spreadType)");
+        lines.add("  // Use /mvs config fill-placements to update with current registry values");
+        lines.add("  placement: {");
+
+        // Add placement values for minecraft:villages from registry
+        try {
+            var structureSetRegistry = server.registryAccess()
+                .registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
+            ResourceLocation villagesLoc = ResourceLocation.parse(MINECRAFT_VILLAGES_SET);
+            var villagesSet = structureSetRegistry.get(villagesLoc);
+
+            if (villagesSet != null && villagesSet.placement() instanceof
+                    net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement randomSpread) {
+                int spacing = randomSpread.spacing();
+                int separation = randomSpread.separation();
+                String spreadType = randomSpread.spreadType() ==
+                    net.minecraft.world.level.levelgen.structure.placement.RandomSpreadType.TRIANGULAR
+                    ? "triangular" : "linear";
+
+                // Get salt via mixin accessor (cross-platform)
+                int salt = ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) randomSpread).invokeSalt();
+
+                lines.add(String.format("    \"%s\": {", MINECRAFT_VILLAGES_SET));
+                lines.add(String.format("      spacing: %d,", spacing));
+                lines.add(String.format("      separation: %d,", separation));
+                lines.add(String.format("      salt: %d,", salt));
+                lines.add(String.format("      spreadType: \"%s\",", spreadType));
+                lines.add("    },");
+            } else {
+                lines.add("    \"minecraft:villages\": {},  // Could not read from registry");
+            }
+        } catch (Exception e) {
+            lines.add("    \"minecraft:villages\": {},  // Could not read from registry");
+        }
+
+        lines.add("  },");
+        lines.add("");
         lines.add("  // ## Debugging functionality");
         lines.add("  // Auto-enabled in dev environments (MVS_DEV=true environment variable)");
 
@@ -874,6 +959,14 @@ public class MVSCommands {
 
         lines.add("  debug_cmd: " + debugCmdValue + ",");
         lines.add("  debug_logging: " + debugLoggingValue + ",");
+        lines.add("");
+        lines.add("  // v0.4.0: Relaxed biome validation");
+        lines.add("  // When false (default): vanilla validates biome at structure's bounding box center.");
+        lines.add("  //   Works well for vanilla-sized structures but may reject large mod structures");
+        lines.add("  //   (BCA, etc.) whose bounding box center lands in a different biome than chunk center.");
+        lines.add("  // When true: bypass vanilla's biome check and trust MVS's chunk-center selection.");
+        lines.add("  //   Recommended for modpacks with large village structures (BCA, CTOV large, etc.)");
+        lines.add("  relaxed_biome_validation: false,");
         lines.add("}");
 
         return lines;
@@ -952,6 +1045,16 @@ public class MVSCommands {
             .withStyle(ChatFormatting.DARK_GRAY), false);
 
         source.sendSuccess(() -> Component.literal("  Reveals what mods define even if overridden by others")
+            .withStyle(ChatFormatting.DARK_GRAY), false);
+
+        source.sendSuccess(() -> Component.literal(""), false); // Blank line
+
+        source.sendSuccess(() -> Component.literal("/mvs debug placement [structure_set]")
+            .withStyle(ChatFormatting.AQUA)
+            .append(Component.literal(" - Show resolved placement values")
+                .withStyle(ChatFormatting.GRAY)), false);
+
+        source.sendSuccess(() -> Component.literal("  Shows spacing/separation/salt/spread_type with source (config/registry/default)")
             .withStyle(ChatFormatting.DARK_GRAY), false);
 
         source.sendSuccess(() -> Component.literal(""), false); // Blank line

@@ -461,4 +461,309 @@ class ConfigParserTest {
         assertEquals(1, result.structurePoolRaw.size());
         assertEquals(1, result.structurePoolRaw.get(0).biomes.size());
     }
+
+    // ============================================================
+    // PLACEMENT CONFIG TESTS
+    // ============================================================
+
+    @Test
+    @DisplayName("Placement: empty object inherits everything")
+    void testPlacement_EmptyObject() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {}
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertEquals(1, result.placement.size());
+        assertTrue(result.placement.containsKey("minecraft:villages"));
+        PlacementRule rule = result.placement.get("minecraft:villages");
+        assertTrue(rule.isFullyInherited());
+    }
+
+    @Test
+    @DisplayName("Placement: full config with all fields")
+    void testPlacement_FullConfig() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  spacing: 34,
+                  separation: 8,
+                  salt: 10387312,
+                  spreadType: "linear",
+                  strategy: "random_spread"
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        PlacementRule rule = result.placement.get("minecraft:villages");
+        assertNotNull(rule);
+        assertEquals(34, rule.spacing);
+        assertEquals(8, rule.separation);
+        assertEquals(10387312, rule.salt);
+        assertEquals("linear", rule.spreadType);
+        assertEquals("random_spread", rule.strategy);
+    }
+
+    @Test
+    @DisplayName("Placement: partial config inherits missing fields")
+    void testPlacement_PartialConfig() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  spacing: 20
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        PlacementRule rule = result.placement.get("minecraft:villages");
+        assertEquals(20, rule.spacing);
+        assertNull(rule.separation);  // Inherited
+        assertNull(rule.salt);        // Inherited
+        assertNull(rule.spreadType);  // Inherited
+    }
+
+    @Test
+    @DisplayName("Placement: invalid spacing generates warning")
+    void testPlacement_InvalidSpacing() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  spacing: 0
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("spacing") && w.contains("invalid")));
+        // Spacing should be null (inherited) since 0 is invalid
+        assertNull(result.placement.get("minecraft:villages").spacing);
+    }
+
+    @Test
+    @DisplayName("Placement: negative separation generates warning")
+    void testPlacement_NegativeSeparation() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  separation: -1
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("separation") && w.contains("invalid")));
+        assertNull(result.placement.get("minecraft:villages").separation);
+    }
+
+    @Test
+    @DisplayName("Placement: separation >= spacing skips entry")
+    void testPlacement_SeparationGteSpacing() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  spacing: 10,
+                  separation: 10
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("separation") && w.contains("less than") && w.contains("spacing")));
+        // Entry should be skipped entirely
+        assertFalse(result.placement.containsKey("minecraft:villages"));
+    }
+
+    @Test
+    @DisplayName("Placement: empty string salt generates warning")
+    void testPlacement_EmptySalt() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  salt: ""
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("salt") && w.contains("empty")));
+        assertNull(result.placement.get("minecraft:villages").salt);
+    }
+
+    @Test
+    @DisplayName("Placement: invalid spreadType generates warning")
+    void testPlacement_InvalidSpreadType() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  spreadType: "invalid_type"
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("spreadType") && w.contains("not valid")));
+        assertNull(result.placement.get("minecraft:villages").spreadType);
+    }
+
+    @Test
+    @DisplayName("Placement: valid spreadType values accepted")
+    void testPlacement_ValidSpreadTypes() throws ConfigParser.ConfigParseException {
+        String[] validTypes = {"linear", "triangular", "edge_biased", "corner_biased", "gaussian", "fixed_center"};
+
+        for (String spreadType : validTypes) {
+            String json = String.format("""
+                {
+                  intercept_structure_sets: ["minecraft:villages"],
+                  structure_pool: [
+                    { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+                  ],
+                  placement: {
+                    "minecraft:villages": {
+                      spreadType: "%s"
+                    }
+                  }
+                }
+                """, spreadType);
+
+            ConfigState result = ConfigParser.parse(json);
+            assertEquals(spreadType, result.placement.get("minecraft:villages").spreadType,
+                "SpreadType " + spreadType + " should be accepted");
+        }
+    }
+
+    @Test
+    @DisplayName("Placement: invalid strategy generates warning")
+    void testPlacement_InvalidStrategy() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  strategy: "invalid_strategy"
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertTrue(result.validationWarnings.stream()
+            .anyMatch(w -> w.contains("strategy") && w.contains("not valid")));
+        assertNull(result.placement.get("minecraft:villages").strategy);
+    }
+
+    @Test
+    @DisplayName("Placement: multiple structure sets")
+    void testPlacement_MultipleStructureSets() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": { spacing: 34 },
+                "bca:villages": { spacing: 40 },
+                "minecraft:pillager_outposts": { spacing: 64 }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertEquals(3, result.placement.size());
+        assertEquals(34, result.placement.get("minecraft:villages").spacing);
+        assertEquals(40, result.placement.get("bca:villages").spacing);
+        assertEquals(64, result.placement.get("minecraft:pillager_outposts").spacing);
+    }
+
+    @Test
+    @DisplayName("Placement: spreadType case insensitive")
+    void testPlacement_SpreadTypeCaseInsensitive() throws ConfigParser.ConfigParseException {
+        String json = """
+            {
+              intercept_structure_sets: ["minecraft:villages"],
+              structure_pool: [
+                { structure: "minecraft:village_plains", biomes: {"#minecraft:is_plains": 10} }
+              ],
+              placement: {
+                "minecraft:villages": {
+                  spreadType: "TRIANGULAR"
+                }
+              }
+            }
+            """;
+
+        ConfigState result = ConfigParser.parse(json);
+
+        assertEquals("triangular", result.placement.get("minecraft:villages").spreadType);
+    }
 }

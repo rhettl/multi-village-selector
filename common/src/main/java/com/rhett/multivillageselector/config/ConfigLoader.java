@@ -60,6 +60,13 @@ public class ConfigLoader {
         MVSCommon.LOGGER.info("MVS: Found existing config file");
         MVSCommon.LOGGER.info("MVS: Loading config from: {}", configFile);
         String content = Files.readString(configFile, StandardCharsets.UTF_8);
+
+        // v0.4.0 migration: add empty placement{} if missing
+        content = migrateToV040(content, configFile);
+
+        // v0.4.0 migration: add relaxed_biome_validation if missing
+        content = migrateRelaxedBiomeValidation(content, configFile);
+
         return new LoadResult(content, false, configFile.toString());
     }
 
@@ -115,5 +122,141 @@ public class ConfigLoader {
      */
     private static boolean isDevEnvironment() {
         return "true".equalsIgnoreCase(System.getenv("MVS_DEV"));
+    }
+
+    /**
+     * Migrate config to v0.4.0 format.
+     * Adds empty placement{} section if missing (for discoverability).
+     *
+     * @param content Original config content
+     * @param configFile Path to config file (for writing back)
+     * @return Updated config content
+     */
+    private static String migrateToV040(String content, Path configFile) {
+        // Check if placement section already exists
+        if (content.contains("placement:") || content.contains("placement {")) {
+            return content; // Already has placement, no migration needed
+        }
+
+        MVSCommon.LOGGER.info("MVS: Migrating config to v0.4.0 (adding placement section)");
+
+        // Build the placement section to insert
+        String placementSection =
+            "\n" +
+            "  // v0.4.0: Override structure placement (spacing, separation, salt, spreadType)\n" +
+            "  // Use /mvs config fill-placements to populate with registry values\n" +
+            "  placement: {\n" +
+            "    \"minecraft:villages\": {},  // Empty = inherit from registry\n" +
+            "  },\n";
+
+        // Try to insert before debug section (comments + variables)
+        String updatedContent = content;
+        boolean inserted = false;
+
+        // Look for debug comment block first ("// ## Debugging" or "// Auto-enabled in dev")
+        java.util.regex.Pattern debugCommentPattern = java.util.regex.Pattern.compile(
+            "(\\n)(\\s*//\\s*(##\\s*)?[Dd]ebug)",
+            java.util.regex.Pattern.MULTILINE
+        );
+        java.util.regex.Matcher commentMatcher = debugCommentPattern.matcher(content);
+        if (commentMatcher.find()) {
+            int insertPos = commentMatcher.start() + 1; // After the newline
+            updatedContent = content.substring(0, insertPos) + placementSection + content.substring(insertPos);
+            inserted = true;
+        }
+
+        // Fallback: look for debug_cmd or debug_logging directly
+        if (!inserted) {
+            java.util.regex.Pattern debugPattern = java.util.regex.Pattern.compile(
+                "(\\n)(\\s*)(debug_cmd|debug_logging)\\s*:",
+                java.util.regex.Pattern.MULTILINE
+            );
+            java.util.regex.Matcher matcher = debugPattern.matcher(content);
+            if (matcher.find()) {
+                int insertPos = matcher.start() + 1;
+                updatedContent = content.substring(0, insertPos) + placementSection + content.substring(insertPos);
+                inserted = true;
+            }
+        }
+
+        // Fallback: insert before final closing brace
+        if (!inserted) {
+            int lastBrace = content.lastIndexOf('}');
+            if (lastBrace > 0) {
+                updatedContent = content.substring(0, lastBrace) + placementSection + "\n" + content.substring(lastBrace);
+                inserted = true;
+            }
+        }
+
+        if (inserted) {
+            // Write back to file
+            try {
+                Files.writeString(configFile, updatedContent, StandardCharsets.UTF_8);
+                MVSCommon.LOGGER.info("MVS: Config migrated - added placement{} section");
+            } catch (IOException e) {
+                MVSCommon.LOGGER.warn("MVS: Could not write migrated config: {}", e.getMessage());
+                // Return original content if write fails
+                return content;
+            }
+        }
+
+        return updatedContent;
+    }
+
+    /**
+     * Migrate config to add relaxed_biome_validation if missing.
+     * Adds as last property before closing brace.
+     *
+     * @param content Original config content
+     * @param configFile Path to config file (for writing back)
+     * @return Updated config content
+     */
+    private static String migrateRelaxedBiomeValidation(String content, Path configFile) {
+        // Check if relaxed_biome_validation already exists
+        if (content.contains("relaxed_biome_validation")) {
+            return content; // Already has it, no migration needed
+        }
+
+        MVSCommon.LOGGER.info("MVS: Adding relaxed_biome_validation to config");
+
+        // Insert before final closing brace
+        int lastBrace = content.lastIndexOf('}');
+        if (lastBrace < 0) {
+            return content; // No closing brace found, can't migrate
+        }
+
+        // Find the last property value before the closing brace and ensure it has a trailing comma
+        // Look backwards from lastBrace to find where we need to insert
+        String beforeBrace = content.substring(0, lastBrace);
+        String trimmed = beforeBrace.stripTrailing();
+
+        // Check if the last non-whitespace char needs a comma
+        // (could be: true, false, number, string quote, ], })
+        boolean needsComma = !trimmed.isEmpty() && !trimmed.endsWith(",") && !trimmed.endsWith("{");
+
+        // Build the property to insert
+        String newProperty =
+            (needsComma ? "," : "") +
+            "\n\n" +
+            "  // v0.4.0: Relaxed biome validation\n" +
+            "  // When false (default): vanilla validates biome at structure's bounding box center.\n" +
+            "  //   Works well for vanilla-sized structures but may reject large mod structures\n" +
+            "  //   (BCA, etc.) whose bounding box center lands in a different biome than chunk center.\n" +
+            "  // When true: bypass vanilla's biome check and trust MVS's chunk-center selection.\n" +
+            "  //   Recommended for modpacks with large village structures (BCA, CTOV large, etc.)\n" +
+            "  relaxed_biome_validation: false,\n";
+
+        String updatedContent = trimmed + newProperty + content.substring(lastBrace);
+
+        // Write back to file
+        try {
+            Files.writeString(configFile, updatedContent, StandardCharsets.UTF_8);
+            MVSCommon.LOGGER.info("MVS: Config updated - added relaxed_biome_validation");
+        } catch (IOException e) {
+            MVSCommon.LOGGER.warn("MVS: Could not write migrated config: {}", e.getMessage());
+            return content;
+        }
+
+        return updatedContent;
     }
 }

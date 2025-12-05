@@ -106,6 +106,19 @@ public class ConfigParser {
                 builder.biomeFrequency(biomeFrequency);
             }
 
+            // Parse relaxed_biome_validation (optional, defaults to false)
+            // When true, bypasses vanilla's biome check at structure placement point
+            // Useful for 3D biome mods like Terralith where terrain adaptation shifts structures
+            if (json.has("relaxed_biome_validation")) {
+                builder.relaxedBiomeValidation(json.get("relaxed_biome_validation").getAsBoolean());
+            }
+
+            // Parse placement (optional)
+            if (json.has("placement")) {
+                Map<String, PlacementRule> placement = parsePlacement(json.get("placement").getAsJson5Object(), warnings);
+                builder.placement(placement);
+            }
+
             builder.validationWarnings(warnings);
 
             return builder.build();
@@ -220,6 +233,186 @@ public class ConfigParser {
             }
 
             result.put(pattern, frequency);
+        }
+
+        return result;
+    }
+
+    /**
+     * Valid spread types for placement configuration.
+     */
+    private static final java.util.Set<String> VALID_SPREAD_TYPES = java.util.Set.of(
+        "linear", "triangular", "edge_biased", "corner_biased", "gaussian", "fixed_center"
+    );
+
+    /**
+     * Valid strategy types for placement configuration.
+     */
+    private static final java.util.Set<String> VALID_STRATEGIES = java.util.Set.of(
+        "random_spread", "concentric_rings"
+    );
+
+    /**
+     * Parses placement object into Map<String, PlacementRule>.
+     * Validates placement values, collects warnings for invalid entries.
+     * Format: { "structure_set_id": { spacing: N, separation: N, salt: N, spreadType: "type", strategy: "type" }, ... }
+     */
+    private static Map<String, PlacementRule> parsePlacement(Json5Object placementObj, List<String> warnings) throws ConfigParseException {
+        Map<String, PlacementRule> result = new LinkedHashMap<>();
+
+        for (String structureSetId : placementObj.keySet()) {
+            Json5Element ruleElement = placementObj.get(structureSetId);
+
+            // Handle empty object {} - inherit everything
+            if (!ruleElement.isJson5Object()) {
+                warnings.add(String.format(
+                    "placement[%s]: expected object, got %s - entry skipped",
+                    structureSetId, ruleElement.getClass().getSimpleName()
+                ));
+                continue;
+            }
+
+            Json5Object ruleObj = ruleElement.getAsJson5Object();
+            PlacementRule.Builder ruleBuilder = new PlacementRule.Builder();
+
+            // Parse spacing (optional)
+            if (ruleObj.has("spacing")) {
+                try {
+                    int spacing = ruleObj.get("spacing").getAsInt();
+                    if (spacing <= 0) {
+                        warnings.add(String.format(
+                            "placement[%s].spacing: %d is invalid (must be > 0) - using inherited value",
+                            structureSetId, spacing
+                        ));
+                    } else {
+                        ruleBuilder.spacing(spacing);
+                    }
+                } catch (Exception e) {
+                    warnings.add(String.format(
+                        "placement[%s].spacing: invalid type (expected integer) - using inherited value",
+                        structureSetId
+                    ));
+                }
+            }
+
+            // Parse separation (optional)
+            if (ruleObj.has("separation")) {
+                try {
+                    int separation = ruleObj.get("separation").getAsInt();
+                    if (separation < 0) {
+                        warnings.add(String.format(
+                            "placement[%s].separation: %d is invalid (must be >= 0) - using inherited value",
+                            structureSetId, separation
+                        ));
+                    } else {
+                        ruleBuilder.separation(separation);
+                    }
+                } catch (Exception e) {
+                    warnings.add(String.format(
+                        "placement[%s].separation: invalid type (expected integer) - using inherited value",
+                        structureSetId
+                    ));
+                }
+            }
+
+            // Parse salt (optional)
+            if (ruleObj.has("salt")) {
+                Json5Element saltElement = ruleObj.get("salt");
+                try {
+                    // Handle empty string as invalid
+                    if (saltElement.isJson5Primitive() && saltElement.getAsJson5Primitive().isString()) {
+                        String saltStr = saltElement.getAsString();
+                        if (saltStr.isEmpty()) {
+                            warnings.add(String.format(
+                                "placement[%s].salt: empty string is invalid - using inherited value",
+                                structureSetId
+                            ));
+                        } else {
+                            // Try to parse string as integer
+                            try {
+                                ruleBuilder.salt(Integer.parseInt(saltStr));
+                            } catch (NumberFormatException nfe) {
+                                warnings.add(String.format(
+                                    "placement[%s].salt: '%s' is not a valid integer - using inherited value",
+                                    structureSetId, saltStr
+                                ));
+                            }
+                        }
+                    } else {
+                        ruleBuilder.salt(saltElement.getAsInt());
+                    }
+                } catch (Exception e) {
+                    warnings.add(String.format(
+                        "placement[%s].salt: invalid type (expected integer) - using inherited value",
+                        structureSetId
+                    ));
+                }
+            }
+
+            // Parse spreadType (optional)
+            if (ruleObj.has("spreadType")) {
+                try {
+                    String spreadType = ruleObj.get("spreadType").getAsString();
+                    if (spreadType.isEmpty()) {
+                        warnings.add(String.format(
+                            "placement[%s].spreadType: empty string is invalid - using inherited value",
+                            structureSetId
+                        ));
+                    } else if (!VALID_SPREAD_TYPES.contains(spreadType.toLowerCase())) {
+                        warnings.add(String.format(
+                            "placement[%s].spreadType: '%s' is not valid (expected one of: %s) - using inherited value",
+                            structureSetId, spreadType, String.join(", ", VALID_SPREAD_TYPES)
+                        ));
+                    } else {
+                        ruleBuilder.spreadType(spreadType.toLowerCase());
+                    }
+                } catch (Exception e) {
+                    warnings.add(String.format(
+                        "placement[%s].spreadType: invalid type (expected string) - using inherited value",
+                        structureSetId
+                    ));
+                }
+            }
+
+            // Parse strategy (optional)
+            if (ruleObj.has("strategy")) {
+                try {
+                    String strategy = ruleObj.get("strategy").getAsString();
+                    if (strategy.isEmpty()) {
+                        warnings.add(String.format(
+                            "placement[%s].strategy: empty string is invalid - using inherited value",
+                            structureSetId
+                        ));
+                    } else if (!VALID_STRATEGIES.contains(strategy.toLowerCase())) {
+                        warnings.add(String.format(
+                            "placement[%s].strategy: '%s' is not valid (expected one of: %s) - using inherited value",
+                            structureSetId, strategy, String.join(", ", VALID_STRATEGIES)
+                        ));
+                    } else {
+                        ruleBuilder.strategy(strategy.toLowerCase());
+                    }
+                } catch (Exception e) {
+                    warnings.add(String.format(
+                        "placement[%s].strategy: invalid type (expected string) - using inherited value",
+                        structureSetId
+                    ));
+                }
+            }
+
+            PlacementRule rule = ruleBuilder.build();
+
+            // Cross-field validation: separation must be < spacing if both specified
+            if (rule.spacing != null && rule.separation != null) {
+                if (rule.separation >= rule.spacing) {
+                    warnings.add(String.format(
+                        "placement[%s]: separation (%d) must be less than spacing (%d) - entry skipped",
+                        structureSetId, rule.separation, rule.spacing
+                    ));
+                    continue; // Skip this entry entirely
+                }
+            }
+
+            result.put(structureSetId, rule);
         }
 
         return result;

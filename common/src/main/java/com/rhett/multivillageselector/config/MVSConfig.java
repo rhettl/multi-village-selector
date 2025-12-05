@@ -2,7 +2,7 @@ package com.rhett.multivillageselector.config;
 
 import com.rhett.multivillageselector.MVSCommon;
 import com.rhett.multivillageselector.util.PatternMatcher;
-import com.rhett.multivillageselector.util.BiomeTagExpander;
+import com.rhett.multivillageselector.util.BiomePoolExpander;
 import com.rhett.multivillageselector.strategy.StructurePicker;
 
 import de.marhali.json5.Json5;
@@ -37,6 +37,11 @@ public class MVSConfig {
     public static boolean debugCmd = false; // Enables /mvs debug commands (advanced users only)
     public static boolean showLaunchMessage = false; // Default false, only true in bundled default
 
+    // v0.4.0: Relaxed biome validation - when true, bypasses vanilla's biome check at structure
+    // placement point and trusts MVS's selection based on chunk center biome. Useful for 3D biome
+    // mods like Terralith where terrain adaptation can shift structures into different biome layers.
+    public static boolean relaxedBiomeValidation = false;
+
     // v0.3.0 config fields
     public static List<String> blockStructureSets = new ArrayList<>();
     public static List<String> interceptStructureSets = new ArrayList<>();
@@ -44,6 +49,9 @@ public class MVSConfig {
     public static List<ConfiguredStructure> structurePool = new ArrayList<>();
     public static List<String> blacklistedStructures = new ArrayList<>();
     public static Map<String, Double> biomeFrequency = new LinkedHashMap<>();
+
+    // v0.4.0 placement config (per-structure-set placement rules)
+    public static Map<String, PlacementRule> placement = new LinkedHashMap<>();
 
     // Track whether structures have been discovered yet
     private static boolean structuresDiscovered = false;
@@ -135,6 +143,8 @@ public class MVSConfig {
             structurePoolRaw = new ArrayList<>(config.structurePoolRaw);
             blacklistedStructures = new ArrayList<>(config.blacklistedStructures);
             biomeFrequency = new LinkedHashMap<>(config.biomeFrequency);
+            relaxedBiomeValidation = config.relaxedBiomeValidation;
+            placement = new LinkedHashMap<>(config.placement);
 
             // Step 4: Log validation warnings (always, regardless of debug_logging)
             if (!config.validationWarnings.isEmpty()) {
@@ -396,55 +406,78 @@ public class MVSConfig {
     }
 
     /**
-     * Expand biome tag patterns like #minecraft:is_* to concrete tags
-     * Pre-expands at discovery time for O(1) runtime lookups
+     * Expand biome patterns to literal biome IDs for O(1) runtime lookups.
      *
-     * Delegates to BiomeTagExpander for testable logic.
+     * v0.4.0: Now expands to literal BIOME IDs (not just tags), enabling
+     * simple map lookup in StructurePicker instead of pattern matching.
+     *
+     * Delegates to BiomePoolExpander for testable logic.
      *
      * Processes patterns in specificity order (vague → specific) so that
      * more specific entries override vague ones:
-     * 1. #*:* (most vague) - matches everything
-     * 2. #minecraft:*, #*:plains* (medium) - partial wildcards
-     * 3. #minecraft:is_plains (most specific) - literals override
+     * 1. #*:* (most vague) - matches all biomes with tags
+     * 2. *:* - matches all biome IDs directly
+     * 3. #minecraft:*, minecraft:* (medium) - partial wildcards
+     * 4. #minecraft:is_plains (tag literal)
+     * 5. minecraft:plains (most specific) - biome ID literals override all
      */
     private static Map<String, Integer> expandBiomeTagPatterns(
             Map<String, Integer> biomes,
             net.minecraft.core.RegistryAccess registryAccess) {
 
-        // Get all biome tags from registry
         Registry<Biome> biomeRegistry = registryAccess.registryOrThrow(Registries.BIOME);
-        Set<ResourceLocation> allBiomeTags = new HashSet<>();
 
-        // Collect all unique biome tags across all biomes
+        // Build data structures for BiomePoolExpander
+        Set<ResourceLocation> allBiomes = new HashSet<>();
+        Set<ResourceLocation> allTags = new HashSet<>();
+        Map<ResourceLocation, Set<String>> biomeTags = new HashMap<>();
+
+        // Collect all biomes, tags, and biome→tags mapping
         for (Holder<Biome> biomeHolder : biomeRegistry.holders().toList()) {
-            biomeHolder.tags().forEach(tagKey -> {
-                allBiomeTags.add(tagKey.location());
-            });
+            ResourceLocation biomeId = biomeHolder.unwrapKey()
+                .map(k -> k.location())
+                .orElse(null);
+
+            if (biomeId != null) {
+                allBiomes.add(biomeId);
+
+                // Collect tags for this biome
+                Set<String> tagsForBiome = new HashSet<>();
+                biomeHolder.tags().forEach(tagKey -> {
+                    allTags.add(tagKey.location());
+                    tagsForBiome.add("#" + tagKey.location().toString());
+                });
+                biomeTags.put(biomeId, tagsForBiome);
+            }
         }
 
-        // Delegate to pure utility class (testable!)
-        BiomeTagExpander.ExpansionResult result = BiomeTagExpander.expandWithStats(biomes, allBiomeTags);
+        // Delegate to BiomePoolExpander (pure utility, testable!)
+        BiomePoolExpander.ExpansionResult<Integer> result = BiomePoolExpander.expandWithStats(
+            biomes, allBiomes, allTags, biomeTags);
 
         // Log expansion results
-        for (Map.Entry<String, Integer> entry : result.expansionCounts.entrySet()) {
+        for (Map.Entry<String, Integer> entry : result.patternMatchCounts.entrySet()) {
             String pattern = entry.getKey();
             int count = entry.getValue();
 
-            if (pattern.contains("*")) {
+            if (pattern.contains("*") || pattern.startsWith("#")) {
                 if (count > 0) {
-                    // DEBUG: Successful expansion details
                     if (debugLogging) {
-                        MVSCommon.LOGGER.info("[MVS] Debug: Expanded biome pattern '{}' → {} tags",
+                        MVSCommon.LOGGER.info("[MVS] Debug: Expanded biome pattern '{}' → {} biomes",
                             pattern, count);
                     }
                 } else {
-                    // WARNING: Pattern matched nothing - always show
-                    MVSCommon.LOGGER.warn("[MVS] Biome pattern '{}' matched 0 tags - check pattern syntax", pattern);
+                    MVSCommon.LOGGER.warn("[MVS] Biome pattern '{}' matched 0 biomes - check pattern syntax", pattern);
                 }
             }
         }
 
-        return result.expandedTags;
+        if (debugLogging) {
+            MVSCommon.LOGGER.info("[MVS] Debug: Expanded {} patterns → {} literal biome IDs",
+                biomes.size(), result.expandedBiomes.size());
+        }
+
+        return result.expandedBiomes;
     }
 
     /**

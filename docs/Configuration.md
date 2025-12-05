@@ -29,6 +29,7 @@ Generate a complete config: `/mvs generate` → outputs to `local/mvs/multivilla
 | `structure_pool` | object[] | `[]` | Structures available for spawning ([details](#structure_pool)) |
 | `blacklisted_structures` | string[] | `[]` | Structure IDs to never spawn                                   |
 | `biome_frequency` | object | `{}` | Spawn rate multiplier per biome ([details](#biome_frequency))  |
+| `relaxed_biome_validation` | boolean | `false` | Bypass vanilla's biome check ([details](#relaxed_biome_validation)) |
 | `debug_cmd` | boolean | `false` | Enable `/mvs debug` commands                                   |
 | `debug_logging` | boolean | `false` | Log spawn attempts to `latest.log`                             |
 
@@ -135,6 +136,36 @@ Same pattern matching as `biomes` in structure_pool.
 
 ---
 
+## relaxed_biome_validation
+
+Controls whether vanilla's secondary biome validation is enforced.
+
+**Background:** When MVS selects a structure, it samples the biome at the chunk center. However, vanilla performs a second biome check at the structure's *bounding box center* after jigsaw assembly. For large structures, these positions can differ significantly, causing the structure to be rejected even though MVS selected it.
+
+| Structure Type | Starter Size | BB Center Offset | Issue Likelihood |
+|----------------|--------------|------------------|------------------|
+| Vanilla villages | 9-15 blocks | +4 to +8 | Low |
+| CTOV small/medium | 10-20 blocks | +5 to +10 | Low |
+| BCA default_mid | 37×38 blocks | +18, +19 | Medium |
+| BCA academy | 49×73 blocks | +24, +36 | High |
+
+**When `false` (default):**
+- Vanilla validates biome at the structure's bounding box center
+- Works well for vanilla-sized structures
+- May reject large mod structures whose BB center lands in a different biome
+
+**When `true`:**
+- Bypass vanilla's biome check entirely
+- Trust MVS's chunk-center selection
+- Recommended for modpacks with large village structures (BCA, CTOV large, etc.)
+
+```json5
+// Recommended for modpacks with BCA, large CTOV villages, etc.
+relaxed_biome_validation: true,
+```
+
+---
+
 ## Structure Sets
 
 ### intercept_structure_sets
@@ -209,6 +240,9 @@ debug_logging: true,  // Logs to latest.log:
     "#minecraft:is_ocean": 0.2,
     "#*:*": 1.0
   },
+
+  // Recommended true for BCA and other large structure mods
+  relaxed_biome_validation: true,
 
   debug_cmd: false,
   debug_logging: false,

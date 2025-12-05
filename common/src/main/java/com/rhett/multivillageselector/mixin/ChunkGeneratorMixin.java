@@ -173,6 +173,11 @@ public abstract class ChunkGeneratorMixin {
             return structure.biomes(); // Not MVS-controlled, use vanilla
         }
 
+        if (MVSConfig.debugLogging) {
+            com.rhett.multivillageselector.MVSCommon.LOGGER.info(
+                "[MVS] Mixin: {} IS in pool, returning MVS biome rules", structureIdString);
+        }
+
         // MVS-controlled: Return custom HolderSet that validates against biomes{}
         return createMVSBiomeHolderSet(structureIdString, registryAccess);
     }
@@ -182,35 +187,63 @@ public abstract class ChunkGeneratorMixin {
      * Uses BiomeRuleResolver for clean, testable logic.
      *
      * Returns a wrapper that delegates to empty HolderSet but overrides contains().
+     * Uses method signature matching (not name) so it works on both NeoForge and Fabric
+     * (method names differ due to mappings: "contains" vs "method_XXXX").
      */
     @SuppressWarnings("unchecked")
     private net.minecraft.core.HolderSet<net.minecraft.world.level.biome.Biome> createMVSBiomeHolderSet(
             String structureId,
             net.minecraft.core.RegistryAccess registryAccess) {
 
-        // Get biome rules using centralized resolver
+        // Get biome rules for strict validation (used when relaxed_biome_validation is false)
         final BiomeRules rules = BiomeRuleResolver.getEffectiveRules(structureId, registryAccess);
 
-        if (rules.isEmpty()) {
-            // Structure not found - fallback to empty (allow all)
-            return net.minecraft.core.HolderSet.direct();
-        }
-
+        // Base HolderSet for delegating non-contains() methods
         final net.minecraft.core.HolderSet<net.minecraft.world.level.biome.Biome> baseSet =
             net.minecraft.core.HolderSet.direct();
 
         // Create wrapper via dynamic proxy
+        // Use method signature matching instead of name to work across mappings
         return (net.minecraft.core.HolderSet<net.minecraft.world.level.biome.Biome>) java.lang.reflect.Proxy.newProxyInstance(
             net.minecraft.core.HolderSet.class.getClassLoader(),
             new Class<?>[] { net.minecraft.core.HolderSet.class },
             (proxy, method, args) -> {
-                // Override contains() method
-                if (method.getName().equals("contains") && args != null && args.length == 1) {
+                // Match contains() by signature: boolean contains(Holder<T>)
+                // Don't use method name - it differs between NeoForge ("contains") and Fabric ("method_XXXX")
+                if (method.getReturnType() == boolean.class &&
+                    method.getParameterCount() == 1 &&
+                    args != null && args.length == 1 &&
+                    args[0] instanceof net.minecraft.core.Holder) {
+
                     net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> biomeHolder =
                         (net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome>) args[0];
 
-                    // Delegate to BiomeRules.matches() - clean, testable logic!
-                    return rules.matches(biomeHolder);
+                    boolean result;
+                    String validationMode;
+
+                    if (MVSConfig.relaxedBiomeValidation) {
+                        // Relaxed mode: MVS already validated at chunk center during selection.
+                        // Bypass vanilla's placement-point check to handle 3D biome mods like Terralith
+                        // where terrain adaptation can shift structures into different biome layers.
+                        result = true;
+                        validationMode = "relaxed (MVS pre-validated)";
+                    } else {
+                        // Strict mode: Validate against structure's biome rules at placement point.
+                        // This is vanilla-like behavior - if jigsaw moves structure into wrong biome, reject it.
+                        result = rules.isEmpty() || rules.matches(biomeHolder);
+                        validationMode = "strict";
+                    }
+
+                    if (MVSConfig.debugLogging) {
+                        String biomeId = biomeHolder.unwrapKey()
+                            .map(k -> k.location().toString())
+                            .orElse("unknown");
+                        MVSCommon.LOGGER.info(
+                            "[MVS] Mixin contains(): {} for biome {} = {} ({})",
+                            structureId, biomeId, result, validationMode);
+                    }
+
+                    return result;
                 }
 
                 // Delegate all other methods to base HolderSet

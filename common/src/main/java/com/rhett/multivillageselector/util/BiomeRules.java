@@ -167,24 +167,31 @@ public class BiomeRules {
 
     /**
      * Get the weight for this structure in a specific biome.
-     * Uses unified pattern matching - supports direct IDs, tags, and patterns.
-     * Returns 0 if no patterns match (structure excluded from pool).
      *
-     * Patterns support:
-     * - Direct biome IDs: "minecraft:plains"
-     * - Biome tags: "#minecraft:is_plains"
-     * - Wildcards: "minecraft:*", "#*:*", "*craft*:*village*"
-     *
-     * Specificity resolution:
-     * - More specific patterns win (fewer wildcards)
-     * - Direct IDs beat tags (no # prefix bonus)
-     * - Tie-breaker: highest weight wins
+     * v0.4.0: First tries O(1) lookup (biome patterns pre-expanded at config load).
+     * Falls back to pattern matching for backward compatibility with tests
+     * and any code that uses tag-based weights directly.
      *
      * @param biomeHolder The biome to check
-     * @return Weight (0 if no matches, highest weight if multiple matches)
+     * @return Weight (0 if no match)
      */
     public int getWeightForBiome(Holder<Biome> biomeHolder) {
-        // Use unified pattern matcher
+        // Get biome ID for direct lookup
+        String biomeId = biomeHolder.unwrapKey()
+            .map(k -> k.location().toString())
+            .orElse(null);
+
+        if (biomeId == null) {
+            return 0;
+        }
+
+        // First try O(1) direct lookup (v0.4.0 pre-expanded biome IDs)
+        Integer weight = weights.get(biomeId);
+        if (weight != null) {
+            return weight;
+        }
+
+        // Fallback to pattern matching (for tests and backward compatibility)
         return PatternMatcher.getValueForBiome(weights, biomeHolder, 0);
     }
 

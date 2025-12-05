@@ -1,9 +1,9 @@
 // ===========================================
-//  Multi Village Selector (MVS) v0.3.0
+//  Multi Village Selector (MVS) v0.4.0
 //  Minimal Test Config
 // ===========================================
 //
-// 🔥 This is a v0.3.0 test config using the new tag-based system
+// 🔥 This is a v0.4.0 config with placement control support
 //
 // 📖 For complete documentation, see:
 //    https://github.com/RhettL/multi-village-selector/blob/master/docs/Configuration.md
@@ -77,6 +77,12 @@
   blacklisted_structures: [
     // Empty for now
   ],
+
+  // v0.4.0: Override structure placement (spacing, separation, salt, spreadType)
+  // Use /mvs config fill-placements to populate with registry values
+  placement: {
+    "minecraft:villages": {},  // Empty = inherit from registry
+  },
 
   // ## Debugging functionality
   // Auto-enabled in dev environments (mod-dev directory, IDE, etc.)

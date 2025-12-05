@@ -71,15 +71,8 @@ public class StructureSetCommands {
                 int spacing = randomSpread.spacing();
                 int separation = randomSpread.separation();
 
-                // Access salt via reflection (it's a field in NeoForge, not a method)
-                int salt = 0;
-                try {
-                    var saltField = RandomSpreadStructurePlacement.class.getDeclaredField("salt");
-                    saltField.setAccessible(true);
-                    salt = (int) saltField.get(randomSpread);
-                } catch (Exception e) {
-                    MVSCommon.LOGGER.warn("Could not access salt value: " + e.getMessage());
-                }
+                // Get salt via mixin accessor (cross-platform)
+                int salt = ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) randomSpread).invokeSalt();
 
                 source.sendSuccess(() -> Component.literal("Spacing: " + spacing + " chunks")
                     .withStyle(ChatFormatting.WHITE), false);

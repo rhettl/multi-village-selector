@@ -5,21 +5,21 @@
 ./gradlew clean build -Pdevelopment='true'
 
 # === NeoForge ===
-# Remove old versions and copy new JAR
-rm -f ../minecraft/mods/multivillageselector-*.jar
-cp neoforge/build/libs/multivillageselector-neoforge-*.jar ../minecraft/mods/
-# Exclude dev/shadow/sources JARs
-rm -f ../minecraft/mods/multivillageselector-*-dev*.jar ../minecraft/mods/multivillageselector-*-sources.jar
+# Remove old versions and copy ONLY the main JAR (not sources/dev/shadow)
+rm -f "../minecraft/mods/"multivillageselector-*.jar 2>/dev/null
+find neoforge/build/libs -name "multivillageselector-neoforge-*.jar" \
+  | grep -v sources | grep -v shadow \
+  | xargs -I {} cp {} ../minecraft/mods/
 
 # Optionally delete config to force regeneration (uncomment if needed):
 #rm -f ../minecraft/config/multivillageselector.json5
 
 # === Fabric ===
-# Remove old versions and copy new JAR
-rm -f ../minecraft-fabric/mods/multivillageselector-*.jar
-cp fabric/build/libs/multivillageselector-fabric-*.jar ../minecraft-fabric/mods/
-# Exclude dev/shadow/sources JARs
-rm -f ../minecraft-fabric/mods/multivillageselector-*-dev*.jar ../minecraft-fabric/mods/multivillageselector-*-sources.jar
+# Remove old versions and copy ONLY the main JAR (not sources/dev/shadow)
+rm -f "../minecraft-fabric/mods/"multivillageselector-*.jar 2>/dev/null
+find fabric/build/libs -name "multivillageselector-fabric-*.jar" \
+  | grep -v sources | grep -v shadow \
+  | xargs -I {} cp {} ../minecraft-fabric/mods/
 
 # Optionally delete config to force regeneration (uncomment if needed):
 #rm -f ../minecraft-fabric/config/multivillageselector.json5
