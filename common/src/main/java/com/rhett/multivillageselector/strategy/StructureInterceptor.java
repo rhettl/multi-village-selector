@@ -4,6 +4,7 @@ import com.rhett.multivillageselector.config.ExclusionZone;
 import com.rhett.multivillageselector.config.MVSConfig;
 import com.rhett.multivillageselector.MVSCommon;
 import com.rhett.multivillageselector.profiler.ChunkGenerationProfiler;
+import com.rhett.multivillageselector.util.LocateHelper;
 import com.rhett.multivillageselector.util.PlacementResolver;
 
 import net.minecraft.core.Holder;
@@ -34,6 +35,21 @@ import java.util.List;
  * - Pre-existing structure checks
  */
 public class StructureInterceptor {
+
+    // Track spawn chunk generation for debugging
+    private static volatile boolean spawnChunkLoggingEnabled = true;
+    private static volatile int spawnChunkLogCount = 0;
+    private static final int SPAWN_CHUNK_LOG_LIMIT = 50; // Log first 50 chunks near origin
+    private static final int SPAWN_CHUNK_RADIUS = 16; // Log chunks within 16 of origin (256 blocks)
+
+    /**
+     * Reset spawn chunk logging for a new world/test.
+     */
+    public static void resetSpawnChunkLogging() {
+        spawnChunkLogCount = 0;
+        spawnChunkLoggingEnabled = true;
+        MVSCommon.LOGGER.info("[MVS-SPAWN] Spawn chunk logging reset - will log next {} chunks near origin", SPAWN_CHUNK_LOG_LIMIT);
+    }
 
     /**
      * Callback interface for structure generation.
@@ -96,6 +112,18 @@ public class StructureInterceptor {
 
         ChunkPos chunkPos = chunk.getPos();
 
+        // Spawn chunk detection logging (always log first chunks near origin)
+        boolean isNearOrigin = Math.abs(chunkPos.x) <= SPAWN_CHUNK_RADIUS && Math.abs(chunkPos.z) <= SPAWN_CHUNK_RADIUS;
+        boolean shouldLogSpawnChunk = isNearOrigin && spawnChunkLoggingEnabled && spawnChunkLogCount < SPAWN_CHUNK_LOG_LIMIT;
+
+        if (shouldLogSpawnChunk) {
+            spawnChunkLogCount++;
+            int worldX = chunkPos.x * 16;
+            int worldZ = chunkPos.z * 16;
+            MVSCommon.LOGGER.info("[MVS-SPAWN] Processing chunk[{},{}] ~world[{},{}] (spawn chunk #{} near origin)",
+                chunkPos.x, chunkPos.z, worldX, worldZ, spawnChunkLogCount);
+        }
+
         // Process each structure_set
         for (Object obj : structureSetList) {
             Holder<StructureSet> structureSetHolder = (Holder<StructureSet>) obj;
@@ -111,13 +139,33 @@ public class StructureInterceptor {
 
             // Check if intercepted
             if (structureSetId != null && MVSConfig.interceptStructureSets.contains(structureSetId)) {
-                // Check placement rules (spacing/separation)
-                StructureSet structureSet = structureSetHolder.value();
-                StructurePlacement placement = structureSet.placement();
+                // Check placement rules using MVS config values (not vanilla registry!)
+                // Resolve placement from config with registry fallback
+                Registry<StructureSet> structureSetRegistry = registryAccess.registryOrThrow(Registries.STRUCTURE_SET);
+                PlacementResolver.ResolvedPlacement resolved = PlacementResolver.resolve(structureSetId, structureSetRegistry);
 
-                if (!placement.isStructureChunk(state, chunkPos.x, chunkPos.z)) {
+                // Create MVS placement strategy for spacing check
+                LocateHelper.RandomSpreadPlacement mvsPlacement = new LocateHelper.RandomSpreadPlacement(
+                    resolved.spacing,
+                    resolved.separation,
+                    resolved.salt,
+                    resolved.spreadType
+                );
+
+                // Check if this chunk is a placement chunk using MVS values
+                if (!mvsPlacement.isPlacementChunk(chunkPos.x, chunkPos.z, state.getLevelSeed())) {
                     // Don't log every failed spacing check - too noisy
                     continue;
+                }
+
+                // SPAWN CHUNK LOGGING: Log placement chunk found near origin
+                if (shouldLogSpawnChunk && structureSetId.contains("village")) {
+                    int worldX = chunkPos.x * 16;
+                    int worldZ = chunkPos.z * 16;
+                    MVSCommon.LOGGER.info("[MVS-SPAWN] ★★★ PLACEMENT CHUNK for '{}' at chunk[{},{}] ~world[{},{}]",
+                        structureSetId, chunkPos.x, chunkPos.z, worldX, worldZ);
+                    MVSCommon.LOGGER.info("[MVS-SPAWN]   Placement: spacing={}, separation={}, salt={}, spread={}",
+                        resolved.spacing, resolved.separation, resolved.salt, resolved.spreadType);
                 }
 
                 // Log when we pass spacing check (debug only)
@@ -266,22 +314,21 @@ public class StructureInterceptor {
 
         ChunkPos chunkPos = chunk.getPos();
 
-        // Get biome at chunk center (same logic as MVSStrategyHandler)
-        int centerX = chunkPos.getMinBlockX() + 8;
-        int centerZ = chunkPos.getMinBlockZ() + 8;
+        // Get biome at chunk NW corner (placement anchor point)
+        // Structure starter piece is placed here, then expands in random direction based on rotation
+        int anchorX = chunkPos.getMinBlockX();
+        int anchorZ = chunkPos.getMinBlockZ();
         int surfaceY = generator.getBaseHeight(
-            centerX, centerZ,
+            anchorX, anchorZ,
             net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE_WG,
             chunk.getHeightAccessorForGeneration(),
             state.randomState()
         );
 
-        // Sample biome ONE BLOCK ABOVE surface (where structures sit, not the ground block)
-        // This matches vanilla's biome validation and handles 3D biome boundaries (e.g., Terralith)
-        int structureY = surfaceY + 1;
+        // Sample biome at surface level (getBaseHeight returns Y of first air above ground)
         net.minecraft.core.Holder<net.minecraft.world.level.biome.Biome> biomeHolder =
             generator.getBiomeSource().getNoiseBiome(
-                centerX >> 2, structureY >> 2, centerZ >> 2,
+                anchorX >> 2, surfaceY >> 2, anchorZ >> 2,
                 state.randomState().sampler()
             );
 

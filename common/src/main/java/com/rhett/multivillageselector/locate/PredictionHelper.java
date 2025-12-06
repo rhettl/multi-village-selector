@@ -53,7 +53,10 @@ public class PredictionHelper {
          * Format for file output.
          */
         public String toFileString() {
-            String structureStr = structureId != null ? structureId : "(no structure - biome freq failed)";
+            // Note: null structureId can mean:
+            // 1. No structures in pool match this biome
+            // 2. Biome frequency roll failed (spawn density reduction)
+            String structureStr = structureId != null ? structureId : "(no structure - freq/biome)";
             String offsetStr = hasOffset ? String.format(" [offset: %d,%d,%d]",
                 locateOffset.getX(), locateOffset.getY(), locateOffset.getZ()) : "";
 

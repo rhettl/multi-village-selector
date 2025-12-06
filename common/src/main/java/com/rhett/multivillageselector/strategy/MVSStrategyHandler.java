@@ -69,9 +69,9 @@ public class MVSStrategyHandler {
 
         // Enhanced debug logging for prediction vs generation comparison
         if (MVSConfig.debugLogging) {
-            int worldX = chunkPos.getMinBlockX() + 8;
-            int worldZ = chunkPos.getMinBlockZ() + 8;
-            MVSCommon.LOGGER.info("[MVS] === GENERATION at chunk [{}, {}] world [{}, {}] ===",
+            int worldX = chunkPos.getMinBlockX();
+            int worldZ = chunkPos.getMinBlockZ();
+            MVSCommon.LOGGER.info("[MVS] === GENERATION at chunk [{}, {}] world [{}, {}] (NW corner) ===",
                 chunkPos.x, chunkPos.z, worldX, worldZ);
         }
 
@@ -83,9 +83,10 @@ public class MVSStrategyHandler {
             return Result.noGenerate("MVS structure already exists at chunk [" + chunkPos.x + "," + chunkPos.z + "]");
         }
 
-        // Get biome at surface level for filtering
-        int worldX = chunkPos.getMinBlockX() + 8;
-        int worldZ = chunkPos.getMinBlockZ() + 8;
+        // Get biome at chunk NW corner (placement anchor point)
+        // Structure starter piece is placed here, then expands in random direction based on rotation
+        int worldX = chunkPos.getMinBlockX();
+        int worldZ = chunkPos.getMinBlockZ();
         int surfaceY = generator.getBaseHeight(
             worldX, worldZ,
             net.minecraft.world.level.levelgen.Heightmap.Types.WORLD_SURFACE_WG,
@@ -102,14 +103,7 @@ public class MVSStrategyHandler {
             worldX >> 2, structureY >> 2, worldZ >> 2, state.randomState().sampler()
         );
 
-        // Enhanced debug: log biome sampling details
-        if (MVSConfig.debugLogging) {
-            String biomeId = biomeHolder.unwrapKey()
-                .map(k -> k.location().toString())
-                .orElse("unknown");
-            MVSCommon.LOGGER.info("[MVS]   BiomeSample: block[{},{},{}] heightmapY={} structureY={} quartY={} -> {}",
-                worldX, surfaceY, worldZ, surfaceY, structureY, structureY >> 2, biomeId);
-        }
+        // BiomeSample debug logging removed - too verbose for normal debugging
 
         // Use MVS to filter by biome tags and select structure
         long seed = state.getLevelSeed();

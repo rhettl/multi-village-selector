@@ -40,9 +40,9 @@ How often villages spawn at all in a biome. Reduce spawn rate in oceans, increas
 ## What MVS Does NOT Control
 
 ### Spacing and Separation
-Village grid spacing is controlled at the structure_set level via datapacks, not by MVS. See [Spacing Guide](SpacingGuide.md) for how to adjust this.
+Spacing, separation, salt, and spread type control was added in v0.4.0. See [Configuration](Configuration.md) for the `placement` section.
 
-Though I'm investigating adding Spacing, Separation, Salt, and Spread Type to v0.4.0/v1.0.0
+**Note:** Placement settings only work with `RandomSpreadStructurePlacement` structures (villages, pillager outposts, etc.). Strongholds use a different placement system and cannot be controlled by MVS.
 
 ### Jigsaw Piece Replacement
 MVS intercepts **structure selection** (which village type spawns), not **jigsaw piece assembly** (which buildings appear inside villages).
@@ -89,14 +89,17 @@ MVS currently only handles Overworld village generation. Nether and End structur
 ### Structure Sets Only
 MVS intercepts structure_sets and manipulates one controlled pool. It's not designed to manage jigsaw pieces or multiple pools.
 
+### Strongholds Not Supported
+MVS placement settings (spacing, separation, spread type) only work with `RandomSpreadStructurePlacement` structures like villages, pillager outposts, and most modded structures. Strongholds use `ConcentricRingsStructurePlacement` which has completely different placement logic - they generate in rings around world origin. MVS cannot and will not control stronghold placement.
+
 ## Future Possibilities
 
 Features under consideration for future versions:
 
-- **Spacing control** - Configure village grid spacing in MVS config
+- ~~**Spacing control** - Configure village grid spacing in MVS config~~ ✅ Added in v0.4.0
 - **Additional structure types** - Pillager outposts, ocean ruins
-~~- **Modded biome inference** - Auto-detect desert-like modded biomes~~
-~~- **Hot reload** - Apply config changes without restart~~
+- ~~**Modded biome inference** - Auto-detect desert-like modded biomes~~
+- ~~**Hot reload** - Apply config changes without restart~~
 
 These are possibilities, not promises. MVS will stay focused on its core mission: **bringing village variety to your world with full user control**.
 

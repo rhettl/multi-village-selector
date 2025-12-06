@@ -493,8 +493,10 @@ public class LocateHelper {
 
             // Get biome at chunk center (for biome sampling)
             // Note: Biome sampling uses chunk center, but locate output uses locateOffset
-            int biomeX = (chunkX << 4) + 8;
-            int biomeZ = (chunkZ << 4) + 8;
+            // Sample biome at chunk NW corner (placement anchor point)
+            // Structure starter piece is placed here, then expands in random direction based on rotation
+            int biomeX = chunkX << 4;
+            int biomeZ = chunkZ << 4;
             Holder<Biome> biomeHolder = biomeSampler.getBiomeAt(
                 biomeX, DEFAULT_SURFACE_Y, biomeZ);
 
@@ -585,12 +587,13 @@ public class LocateHelper {
     /**
      * Simulate MVS weighted selection at a specific chunk.
      * Uses the same deterministic random formula as actual chunk generation.
+     * Includes biome_frequency simulation for accurate predictions.
      *
      * @param chunkX Chunk X coordinate
      * @param chunkZ Chunk Z coordinate
      * @param seed World seed
      * @param biomeHolder Biome at this location
-     * @return Selected structure, or null if none match biome
+     * @return Selected structure, or null if none match biome or frequency check fails
      */
     public static MVSConfig.ConfiguredStructure simulateSelection(
             int chunkX, int chunkZ, long seed, Holder<Biome> biomeHolder) {
@@ -598,9 +601,41 @@ public class LocateHelper {
         // Same random formula as StructureInterceptor and MVSStrategyHandler
         Random random = new Random(seed + chunkX * 341873128712L + chunkZ * 132897987541L);
 
+        // Check biome_frequency first (same as StructureInterceptor.rollBiomeFrequency)
+        if (!simulateBiomeFrequency(random, biomeHolder)) {
+            return null; // Frequency check failed - no spawn at this location
+        }
+
         // Use StructurePicker for consistent selection logic
         StructurePicker picker = new StructurePicker(MVSConfig.structurePool);
         return picker.select(random, biomeHolder);
+    }
+
+    /**
+     * Simulate biome frequency roll for predictions.
+     * Matches the logic in StructureInterceptor.rollBiomeFrequency().
+     *
+     * @param random Random instance (already seeded for this chunk)
+     * @param biomeHolder Biome at this location
+     * @return true if frequency roll passes, false if spawn should be skipped
+     */
+    private static boolean simulateBiomeFrequency(Random random, Holder<Biome> biomeHolder) {
+        // If no biome_frequency configured, always pass (default 100%)
+        if (MVSConfig.biomeFrequency.isEmpty()) {
+            return true;
+        }
+
+        // Use unified pattern matcher to get frequency
+        // Supports direct biome IDs, tags, and patterns with specificity resolution
+        double frequency = PatternMatcher.getValueForBiome(
+            MVSConfig.biomeFrequency,
+            biomeHolder,
+            1.0  // Default: 100% spawn rate
+        );
+
+        // Roll random and check against frequency
+        double roll = random.nextDouble();
+        return roll < frequency;
     }
 
     /**
@@ -668,13 +703,6 @@ public class LocateHelper {
             int quartY = structureY >> 2;
             int quartZ = blockZ >> 2;
             var biome = biomeSource.getNoiseBiome(quartX, quartY, quartZ, climateSampler);
-
-            if (com.rhett.multivillageselector.config.MVSConfig.debugLogging) {
-                String biomeId = biome.unwrapKey().map(k -> k.location().toString()).orElse("unknown");
-                com.rhett.multivillageselector.MVSCommon.LOGGER.info(
-                    "[MVS] BiomeSample: block[{},{},{}] surfaceY={} quartY={} -> {}",
-                    blockX, blockZ, surfaceY, quartY, biomeId);
-            }
 
             return biome;
         };

@@ -172,6 +172,8 @@ relaxed_biome_validation: true,
 
 MVS takes control of structure selection for these sets. Usually just `["minecraft:villages"]`.
 
+**Note:** MVS placement settings only work with `RandomSpreadStructurePlacement` structures (villages, pillager outposts, most modded structures). Strongholds use `ConcentricRingsStructurePlacement` with ring-based logic that MVS cannot control.
+
 ### block_structure_sets
 
 Completely disables these structure sets. Use when mods have their own village sets that would cause double-spawning. 

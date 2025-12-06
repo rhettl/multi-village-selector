@@ -84,6 +84,14 @@
     "minecraft:villages": {},  // Empty = inherit from registry
   },
 
+  // v0.4.0: Relaxed biome validation
+  // When false (default): vanilla validates biome at structure's bounding box center.
+  //   Works well for vanilla-sized structures but may reject large mod structures
+  //   (BCA, etc.) whose bounding box center lands in a different biome than chunk center.
+  // When true: bypass vanilla's biome check and trust MVS's chunk-center selection.
+  //   Recommended for modpacks with large village structures (BCA, CTOV large, etc.)
+  relaxed_biome_validation: false,
+
   // ## Debugging functionality
   // Auto-enabled in dev environments (mod-dev directory, IDE, etc.)
   debug_cmd: false,

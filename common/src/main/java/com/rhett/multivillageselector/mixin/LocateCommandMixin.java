@@ -11,6 +11,7 @@ import com.rhett.multivillageselector.util.PlacementResolver;
 
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
+import net.minecraft.commands.arguments.ResourceOrTagKeyArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Holder;
 import net.minecraft.core.HolderSet;
@@ -21,6 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentUtils;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.commands.LocateCommand;
 import net.minecraft.server.level.ServerLevel;
@@ -45,6 +47,7 @@ public abstract class LocateCommandMixin {
 
     /**
      * Intercept the locateStructure method to use MVS logic for controlled structures.
+     * Note: Method signature uses ResourceOrTagKeyArgument.Result which is converted to HolderSet internally.
      */
     @Inject(
         method = "locateStructure",
@@ -53,15 +56,23 @@ public abstract class LocateCommandMixin {
     )
     private static void onLocateStructure(
             CommandSourceStack source,
-            HolderSet<Structure> structures,
+            ResourceOrTagKeyArgument.Result<Structure> structureArg,
             CallbackInfoReturnable<Integer> cir
     ) throws CommandSyntaxException {
         if (!MVSConfig.enabled) {
             return; // Let vanilla handle it
         }
 
+        // Convert ResourceOrTagKeyArgument.Result to HolderSet for processing
+        Registry<Structure> registry = source.getLevel().registryAccess().registryOrThrow(Registries.STRUCTURE);
+        Optional<HolderSet<Structure>> holderSetOpt = getHolders(structureArg, registry);
+        if (holderSetOpt.isEmpty()) {
+            return; // Let vanilla handle (will throw error)
+        }
+        HolderSet<Structure> structures = holderSetOpt.get();
+
         // Check if any of the requested structures are MVS-controlled
-        Optional<String> mvsStructureId = findMVSControlledStructure(structures, source);
+        Optional<String> mvsStructureId = findMVSControlledStructure(structures);
         if (mvsStructureId.isEmpty()) {
             return; // Not MVS-controlled, let vanilla handle it
         }
@@ -83,13 +94,25 @@ public abstract class LocateCommandMixin {
     }
 
     /**
+     * Convert ResourceOrTagKeyArgument.Result to HolderSet.
+     * Mirrors vanilla's getHolders logic.
+     */
+    @SuppressWarnings("unchecked")
+    private static Optional<HolderSet<Structure>> getHolders(
+            ResourceOrTagKeyArgument.Result<Structure> result,
+            Registry<Structure> registry) {
+        // Use Either.map with explicit function types to help type inference
+        return result.unwrap().map(
+            (ResourceKey<Structure> key) -> registry.getHolder(key).map(holder -> (HolderSet<Structure>) HolderSet.direct(holder)),
+            (net.minecraft.tags.TagKey<Structure> tag) -> registry.getTag(tag).map(holders -> (HolderSet<Structure>) holders)
+        );
+    }
+
+    /**
      * Check if any structure in the HolderSet is MVS-controlled.
      * Returns the first MVS-controlled structure ID found.
      */
-    private static Optional<String> findMVSControlledStructure(
-            HolderSet<Structure> structures,
-            CommandSourceStack source) {
-
+    private static Optional<String> findMVSControlledStructure(HolderSet<Structure> structures) {
         for (Holder<Structure> holder : structures) {
             Optional<ResourceLocation> keyOpt = holder.unwrapKey().map(k -> k.location());
             if (keyOpt.isEmpty()) continue;
