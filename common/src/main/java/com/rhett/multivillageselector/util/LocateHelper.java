@@ -153,6 +153,87 @@ public class LocateHelper {
         FIXED_CENTER
     }
 
+    // ========================================================================
+    // PLACEMENT CALCULATION UTILITIES
+    // These are the canonical implementations - all placement code should use these
+    // ========================================================================
+
+    /**
+     * Calculate the placement chunk for a given grid cell.
+     * This is the canonical implementation used by both LocateHelper and MVSRandomSpreadStructurePlacement.
+     *
+     * Uses vanilla's seeding formula: cellX * 341873128712L + cellZ * 132897987541L + seed + salt
+     *
+     * @param cellX Grid cell X coordinate (chunkX / spacing)
+     * @param cellZ Grid cell Z coordinate (chunkZ / spacing)
+     * @param seed World seed
+     * @param salt Structure salt
+     * @param spacing Grid spacing in chunks
+     * @param separation Minimum separation from cell edge
+     * @param spreadType Distribution type within cell
+     * @return int[] with [chunkX, chunkZ] of the placement position
+     */
+    public static int[] calculatePlacementChunk(int cellX, int cellZ, long seed, int salt,
+                                                 int spacing, int separation, SpreadType spreadType) {
+        // Vanilla's seeding formula (from WorldgenRandom.setLargeFeatureWithSalt)
+        long cellSeed = (long)cellX * 341873128712L + (long)cellZ * 132897987541L + seed + (long)salt;
+        Random random = new Random(cellSeed);
+
+        int maxOffset = spacing - separation;
+        int offsetX, offsetZ;
+
+        switch (spreadType) {
+            case TRIANGULAR:
+                // Bell curve toward center (sum of two randoms) - vanilla's triangular
+                offsetX = (random.nextInt(maxOffset) + random.nextInt(maxOffset)) / 2;
+                offsetZ = (random.nextInt(maxOffset) + random.nextInt(maxOffset)) / 2;
+                break;
+
+            case EDGE_BIASED:
+                // Biased toward edges (inverse of triangular)
+                int rawX = random.nextInt(maxOffset);
+                int rawZ = random.nextInt(maxOffset);
+                int altX = random.nextInt(maxOffset);
+                int altZ = random.nextInt(maxOffset);
+                offsetX = (rawX > maxOffset/2) ? Math.max(rawX, altX) : Math.min(rawX, altX);
+                offsetZ = (rawZ > maxOffset/2) ? Math.max(rawZ, altZ) : Math.min(rawZ, altZ);
+                break;
+
+            case CORNER_BIASED:
+                // Biased toward corners (both axes pushed to extremes)
+                int x1 = random.nextInt(maxOffset);
+                int x2 = random.nextInt(maxOffset);
+                int z1 = random.nextInt(maxOffset);
+                int z2 = random.nextInt(maxOffset);
+                offsetX = (Math.abs(x1 - maxOffset/2) > Math.abs(x2 - maxOffset/2)) ? x1 : x2;
+                offsetZ = (Math.abs(z1 - maxOffset/2) > Math.abs(z2 - maxOffset/2)) ? z1 : z2;
+                break;
+
+            case GAUSSIAN:
+                // Gaussian distribution centered in cell
+                double gaussX = random.nextGaussian() * (maxOffset / 6.0) + (maxOffset / 2.0);
+                double gaussZ = random.nextGaussian() * (maxOffset / 6.0) + (maxOffset / 2.0);
+                offsetX = Math.max(0, Math.min(maxOffset - 1, (int) gaussX));
+                offsetZ = Math.max(0, Math.min(maxOffset - 1, (int) gaussZ));
+                break;
+
+            case FIXED_CENTER:
+                // Always at cell center (deterministic)
+                offsetX = maxOffset / 2;
+                offsetZ = maxOffset / 2;
+                break;
+
+            case LINEAR:
+            default:
+                // Uniform random (vanilla default)
+                offsetX = random.nextInt(maxOffset);
+                offsetZ = random.nextInt(maxOffset);
+                break;
+        }
+
+        return new int[] { cellX * spacing + offsetX, cellZ * spacing + offsetZ };
+    }
+
     /**
      * Vanilla-style random spread placement (grid with random offset).
      * This is the default placement used by minecraft:villages.
@@ -298,64 +379,8 @@ public class LocateHelper {
          * Uses the configured spread type to determine offset distribution.
          */
         public int[] getPlacementChunkForCell(int cellX, int cellZ, long seed) {
-            long cellSeed = (long)cellX * 341873128712L + (long)cellZ * 132897987541L + seed + (long)salt;
-            Random random = new Random(cellSeed);
-
-            int maxOffset = spacing - separation;
-            int offsetX, offsetZ;
-
-            switch (spreadType) {
-                case TRIANGULAR:
-                    // Bell curve toward center (sum of two randoms)
-                    offsetX = (random.nextInt(maxOffset) + random.nextInt(maxOffset)) / 2;
-                    offsetZ = (random.nextInt(maxOffset) + random.nextInt(maxOffset)) / 2;
-                    break;
-
-                case EDGE_BIASED:
-                    // Biased toward edges (inverse of triangular)
-                    int rawX = random.nextInt(maxOffset);
-                    int rawZ = random.nextInt(maxOffset);
-                    // Push toward edges by taking max/min of two samples
-                    int altX = random.nextInt(maxOffset);
-                    int altZ = random.nextInt(maxOffset);
-                    offsetX = (rawX > maxOffset/2) ? Math.max(rawX, altX) : Math.min(rawX, altX);
-                    offsetZ = (rawZ > maxOffset/2) ? Math.max(rawZ, altZ) : Math.min(rawZ, altZ);
-                    break;
-
-                case CORNER_BIASED:
-                    // Biased toward corners (both axes pushed to extremes)
-                    int x1 = random.nextInt(maxOffset);
-                    int x2 = random.nextInt(maxOffset);
-                    int z1 = random.nextInt(maxOffset);
-                    int z2 = random.nextInt(maxOffset);
-                    // Take the more extreme value for each axis
-                    offsetX = (Math.abs(x1 - maxOffset/2) > Math.abs(x2 - maxOffset/2)) ? x1 : x2;
-                    offsetZ = (Math.abs(z1 - maxOffset/2) > Math.abs(z2 - maxOffset/2)) ? z1 : z2;
-                    break;
-
-                case GAUSSIAN:
-                    // Gaussian distribution centered in cell
-                    double gaussX = random.nextGaussian() * (maxOffset / 6.0) + (maxOffset / 2.0);
-                    double gaussZ = random.nextGaussian() * (maxOffset / 6.0) + (maxOffset / 2.0);
-                    offsetX = Math.max(0, Math.min(maxOffset - 1, (int) gaussX));
-                    offsetZ = Math.max(0, Math.min(maxOffset - 1, (int) gaussZ));
-                    break;
-
-                case FIXED_CENTER:
-                    // Always at cell center (deterministic)
-                    offsetX = maxOffset / 2;
-                    offsetZ = maxOffset / 2;
-                    break;
-
-                case LINEAR:
-                default:
-                    // Uniform random (vanilla default)
-                    offsetX = random.nextInt(maxOffset);
-                    offsetZ = random.nextInt(maxOffset);
-                    break;
-            }
-
-            return new int[] { cellX * spacing + offsetX, cellZ * spacing + offsetZ };
+            // Delegate to canonical implementation
+            return calculatePlacementChunk(cellX, cellZ, seed, salt, spacing, separation, spreadType);
         }
     }
 

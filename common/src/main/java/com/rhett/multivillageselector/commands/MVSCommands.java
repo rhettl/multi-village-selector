@@ -445,20 +445,67 @@ public class MVSCommands {
                 .append(Component.literal(String.valueOf(MVSConfig.interceptStructureSets.size()))
                     .withStyle(ChatFormatting.WHITE)), false);
 
+            // If disabled, show registry values instead of MVS config values
+            if (!MVSConfig.enabled) {
+                source.sendSuccess(() -> Component.literal("  (MVS disabled - showing registry values)")
+                    .withStyle(ChatFormatting.DARK_GRAY), false);
+            }
+
             for (String setId : MVSConfig.interceptStructureSets) {
                 final String finalSetId = setId;
 
-                // Get resolved placement (Config > Registry > Defaults)
                 try {
-                    com.rhett.multivillageselector.util.PlacementResolver.ResolvedPlacement resolved =
-                        com.rhett.multivillageselector.util.PlacementResolver.resolve(setId, structureSetRegistry);
+                    // When disabled, show registry values directly
+                    // When enabled, show resolved placement (Config > Registry > Defaults)
+                    final int finalSpacing;
+                    final int finalSeparation;
+                    final int finalSalt;
+                    final String spacingSource;
+                    final String separationSource;
+                    final String saltSource;
 
-                    final int finalSpacing = resolved.spacing;
-                    final int finalSeparation = resolved.separation;
-                    final int finalSalt = resolved.salt;
-                    final String spacingSource = resolved.spacingSource;
-                    final String separationSource = resolved.separationSource;
-                    final String saltSource = resolved.saltSource;
+                    if (!MVSConfig.enabled) {
+                        // Get raw registry values
+                        net.minecraft.resources.ResourceLocation loc = net.minecraft.resources.ResourceLocation.parse(setId);
+                        var setHolder = structureSetRegistry.getHolder(net.minecraft.resources.ResourceKey.create(
+                            net.minecraft.core.registries.Registries.STRUCTURE_SET, loc)).orElse(null);
+
+                        if (setHolder != null) {
+                            var placement = setHolder.value().placement();
+                            if (placement instanceof net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement rsp) {
+                                finalSpacing = rsp.spacing();
+                                finalSeparation = rsp.separation();
+                                finalSalt = ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) rsp).invokeSalt();
+                                spacingSource = "registry";
+                                separationSource = "registry";
+                                saltSource = "registry";
+                            } else {
+                                finalSpacing = 34;
+                                finalSeparation = 8;
+                                finalSalt = 10387312;
+                                spacingSource = "default";
+                                separationSource = "default";
+                                saltSource = "default";
+                            }
+                        } else {
+                            finalSpacing = 34;
+                            finalSeparation = 8;
+                            finalSalt = 10387312;
+                            spacingSource = "default";
+                            separationSource = "default";
+                            saltSource = "default";
+                        }
+                    } else {
+                        // Normal MVS behavior - use PlacementResolver
+                        com.rhett.multivillageselector.util.PlacementResolver.ResolvedPlacement resolved =
+                            com.rhett.multivillageselector.util.PlacementResolver.resolve(setId, structureSetRegistry);
+                        finalSpacing = resolved.spacing;
+                        finalSeparation = resolved.separation;
+                        finalSalt = resolved.salt;
+                        spacingSource = resolved.spacingSource;
+                        separationSource = resolved.separationSource;
+                        saltSource = resolved.saltSource;
+                    }
 
                     // Clickable to run /mvs structure set <id>
                     Component setComponent = Component.literal("  ⚡ " + finalSetId)
@@ -561,14 +608,14 @@ public class MVSCommands {
 
             source.sendSuccess(() -> Component.literal("File: ")
                 .withStyle(ChatFormatting.GRAY)
-                .append(Component.literal("local/mvs/multivillageselector.json5")
+                .append(Component.literal("<minecraft instance>/local/mvs/multivillageselector.json5")
                     .withStyle(ChatFormatting.AQUA)
                     .withStyle(style -> style.withClickEvent(new net.minecraft.network.chat.ClickEvent(
                         net.minecraft.network.chat.ClickEvent.Action.COPY_TO_CLIPBOARD,
                         outputFile.toAbsolutePath().toString()))
                         .withHoverEvent(new net.minecraft.network.chat.HoverEvent(
                             net.minecraft.network.chat.HoverEvent.Action.SHOW_TEXT,
-                            Component.literal("Click to copy path"))))), false);
+                            Component.literal("Click to copy full path"))))), false);
 
             source.sendSuccess(() -> Component.literal(""), false);
 

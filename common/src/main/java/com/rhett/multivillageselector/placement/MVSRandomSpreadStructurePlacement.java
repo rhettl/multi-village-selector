@@ -3,8 +3,6 @@ package com.rhett.multivillageselector.placement;
 import com.rhett.multivillageselector.util.LocateHelper;
 import net.minecraft.core.Vec3i;
 import net.minecraft.world.level.ChunkPos;
-import net.minecraft.world.level.levelgen.LegacyRandomSource;
-import net.minecraft.world.level.levelgen.WorldgenRandom;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
 import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadType;
 import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
@@ -89,6 +87,8 @@ public class MVSRandomSpreadStructurePlacement extends RandomSpreadStructurePlac
      * This is the key method that Explorer's Compass and Structure Compass call
      * to find where structures can spawn. By overriding it, we ensure they
      * use MVS's placement algorithm.
+     *
+     * Delegates to LocateHelper.calculatePlacementChunk() for canonical implementation.
      */
     @Override
     public ChunkPos getPotentialStructureChunk(long seed, int regionX, int regionZ) {
@@ -96,63 +96,13 @@ public class MVSRandomSpreadStructurePlacement extends RandomSpreadStructurePlac
         int cellX = Math.floorDiv(regionX, this.spacing());
         int cellZ = Math.floorDiv(regionZ, this.spacing());
 
-        // Use vanilla's seeding method for consistency
-        WorldgenRandom random = new WorldgenRandom(new LegacyRandomSource(0L));
-        random.setLargeFeatureWithSalt(seed, cellX, cellZ, this.salt());
+        // Delegate to canonical implementation in LocateHelper
+        int[] result = LocateHelper.calculatePlacementChunk(
+            cellX, cellZ, seed, this.salt(),
+            this.spacing(), this.separation(), mvsSpreadType
+        );
 
-        int maxOffset = this.spacing() - this.separation();
-        int offsetX, offsetZ;
-
-        switch (mvsSpreadType) {
-            case TRIANGULAR:
-                // Bell curve toward center (sum of two randoms)
-                offsetX = (random.nextInt(maxOffset) + random.nextInt(maxOffset)) / 2;
-                offsetZ = (random.nextInt(maxOffset) + random.nextInt(maxOffset)) / 2;
-                break;
-
-            case EDGE_BIASED:
-                // Biased toward edges (inverse of triangular)
-                int rawX = random.nextInt(maxOffset);
-                int rawZ = random.nextInt(maxOffset);
-                int altX = random.nextInt(maxOffset);
-                int altZ = random.nextInt(maxOffset);
-                offsetX = (rawX > maxOffset/2) ? Math.max(rawX, altX) : Math.min(rawX, altX);
-                offsetZ = (rawZ > maxOffset/2) ? Math.max(rawZ, altZ) : Math.min(rawZ, altZ);
-                break;
-
-            case CORNER_BIASED:
-                // Biased toward corners (both axes pushed to extremes)
-                int x1 = random.nextInt(maxOffset);
-                int x2 = random.nextInt(maxOffset);
-                int z1 = random.nextInt(maxOffset);
-                int z2 = random.nextInt(maxOffset);
-                offsetX = (Math.abs(x1 - maxOffset/2) > Math.abs(x2 - maxOffset/2)) ? x1 : x2;
-                offsetZ = (Math.abs(z1 - maxOffset/2) > Math.abs(z2 - maxOffset/2)) ? z1 : z2;
-                break;
-
-            case GAUSSIAN:
-                // Gaussian distribution centered in cell
-                double gaussX = random.nextGaussian() * (maxOffset / 6.0) + (maxOffset / 2.0);
-                double gaussZ = random.nextGaussian() * (maxOffset / 6.0) + (maxOffset / 2.0);
-                offsetX = Math.max(0, Math.min(maxOffset - 1, (int) gaussX));
-                offsetZ = Math.max(0, Math.min(maxOffset - 1, (int) gaussZ));
-                break;
-
-            case FIXED_CENTER:
-                // Always at cell center (deterministic)
-                offsetX = maxOffset / 2;
-                offsetZ = maxOffset / 2;
-                break;
-
-            case LINEAR:
-            default:
-                // Uniform random (vanilla default)
-                offsetX = random.nextInt(maxOffset);
-                offsetZ = random.nextInt(maxOffset);
-                break;
-        }
-
-        return new ChunkPos(cellX * this.spacing() + offsetX, cellZ * this.spacing() + offsetZ);
+        return new ChunkPos(result[0], result[1]);
     }
 
     /**
