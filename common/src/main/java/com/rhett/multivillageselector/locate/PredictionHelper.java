@@ -128,11 +128,11 @@ public class PredictionHelper {
             int dz = worldPos.getZ() - startPos.getZ();
             int distance = (int) Math.sqrt(dx * dx + dz * dz);
 
-            // Get biome at chunk center using surface-aware sampling
+            // Get biome at chunk NW corner (placement anchor point)
+            // Must match MVSStrategyHandler which samples at NW corner, not center
             // The BiomeSampler uses noise-based height estimation, so Y parameter is ignored
-            // This correctly handles 3D biome mods like Terralith
-            int biomeX = (chunkX << 4) + 8;
-            int biomeZ = (chunkZ << 4) + 8;
+            int biomeX = chunkX << 4;
+            int biomeZ = chunkZ << 4;
             Holder<Biome> biomeHolder = biomeSampler.getBiomeAt(biomeX, 0, biomeZ);
 
             String biomeId = biomeHolder.unwrapKey()
@@ -252,9 +252,10 @@ public class PredictionHelper {
             int dz = worldPos.getZ() - startPos.getZ();
             int distance = (int) Math.sqrt(dx * dx + dz * dz);
 
-            // Get biome at chunk center using surface-aware sampling
-            int biomeX = (chunkX << 4) + 8;
-            int biomeZ = (chunkZ << 4) + 8;
+            // Get biome at chunk NW corner (placement anchor point)
+            // Must match MVSStrategyHandler which samples at NW corner, not center
+            int biomeX = chunkX << 4;
+            int biomeZ = chunkZ << 4;
             Holder<Biome> biomeHolder = biomeSampler.getBiomeAt(biomeX, 0, biomeZ);
 
             // Simulate selection
