@@ -3,31 +3,19 @@ package com.rhett.multivillageselector.commands.structure;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.rhett.multivillageselector.MVSCommon;
-import com.rhett.multivillageselector.config.MVSConfig;
+import com.rhett.multivillageselector.util.StructureSetAnalyzer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
-import net.minecraft.core.Registry;
-import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.HoverEvent;
 import net.minecraft.network.chat.Style;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.level.levelgen.structure.StructureSet;
-import net.minecraft.world.level.levelgen.structure.placement.RandomSpreadStructurePlacement;
-import net.minecraft.world.level.levelgen.structure.placement.StructurePlacement;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Handles /mvs structure set <structure_set> command
  * Displays detailed information about a structure set
  */
 public class StructureSetCommands {
-
-    // Minecraft's villages salt for comparison
-    private static final int VANILLA_VILLAGES_SALT = 10387312;
 
     /**
      * Handle /mvs structure set <structure_set> [full]
@@ -40,14 +28,11 @@ public class StructureSetCommands {
 
         try {
             var registryAccess = source.getServer().registryAccess();
-            var structureSetRegistry = registryAccess.registryOrThrow(Registries.STRUCTURE_SET);
-            var structureRegistry = registryAccess.registryOrThrow(Registries.STRUCTURE);
 
-            // Get the structure set
-            ResourceLocation setLocation = ResourceLocation.parse(structureSetId);
-            var structureSet = structureSetRegistry.get(setLocation);
+            // Use StructureSetAnalyzer for all the analysis
+            StructureSetAnalyzer.StructureSetInfo info = StructureSetAnalyzer.analyze(structureSetId, registryAccess);
 
-            if (structureSet == null) {
+            if (info == null) {
                 source.sendFailure(Component.literal("Structure set not found: " + structureSetId));
                 return 0;
             }
@@ -58,43 +43,38 @@ public class StructureSetCommands {
                 .withStyle(ChatFormatting.GOLD), false);
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // Get placement info
-            StructurePlacement placement = structureSet.placement();
-
-            // --- PLACEMENT TYPE ---
-            source.sendSuccess(() -> Component.literal("Placement Type: " + placement.type().toString())
+            // Placement type
+            source.sendSuccess(() -> Component.literal("Placement Type: " + info.placementType)
                 .withStyle(ChatFormatting.AQUA), false);
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // --- SPACING, SEPARATION, SALT (if RandomSpread) ---
-            if (placement instanceof RandomSpreadStructurePlacement randomSpread) {
-                int spacing = randomSpread.spacing();
-                int separation = randomSpread.separation();
-
-                // Get salt via mixin accessor (cross-platform)
-                int salt = ((com.rhett.multivillageselector.mixin.StructurePlacementAccessor) randomSpread).invokeSalt();
-
+            // Spacing, separation, salt (if available)
+            if (info.spacing != null) {
+                final int spacing = info.spacing;
                 source.sendSuccess(() -> Component.literal("Spacing: " + spacing + " chunks")
                     .withStyle(ChatFormatting.WHITE), false);
                 source.sendSuccess(() -> Component.literal("  Structure attempts occur every " + spacing + " chunks")
                     .withStyle(ChatFormatting.GRAY), false);
                 source.sendSuccess(() -> Component.literal(""), false);
+            }
 
+            if (info.separation != null) {
+                final int separation = info.separation;
                 source.sendSuccess(() -> Component.literal("Separation: " + separation + " chunks")
                     .withStyle(ChatFormatting.WHITE), false);
                 source.sendSuccess(() -> Component.literal("  Minimum distance between structures in this set")
                     .withStyle(ChatFormatting.GRAY), false);
                 source.sendSuccess(() -> Component.literal(""), false);
+            }
 
-                // Salt with comparison
-                final int finalSalt = salt;
-                boolean matchesVanillaSalt = (salt == VANILLA_VILLAGES_SALT);
-                ChatFormatting saltColor = matchesVanillaSalt ? ChatFormatting.YELLOW : ChatFormatting.WHITE;
+            if (info.salt != null) {
+                final int salt = info.salt;
+                ChatFormatting saltColor = info.matchesVanillaSalt ? ChatFormatting.YELLOW : ChatFormatting.WHITE;
 
-                source.sendSuccess(() -> Component.literal("Salt: " + finalSalt)
+                source.sendSuccess(() -> Component.literal("Salt: " + salt)
                     .withStyle(saltColor), false);
 
-                if (matchesVanillaSalt) {
+                if (info.matchesVanillaSalt) {
                     source.sendSuccess(() -> Component.literal("  ⚠ WARNING: Same salt as minecraft:villages!")
                         .withStyle(ChatFormatting.YELLOW), false);
                     source.sendSuccess(() -> Component.literal("  This can cause overlapping structures")
@@ -104,34 +84,32 @@ public class StructureSetCommands {
                         .withStyle(ChatFormatting.GRAY), false);
                 }
                 source.sendSuccess(() -> Component.literal(""), false);
+            }
 
-                // Spawn frequency calculation
-                // Minecraft uses a square grid: spacing × spacing chunks per attempt
-                double averageChunksPerStructure = spacing * spacing;
-                int averageBlocksPerStructure = (int)(averageChunksPerStructure * 16 * 16);
+            // Spawn frequency
+            if (info.spacing != null) {
+                double avgChunks = info.getAverageChunksPerStructure();
+                int avgBlocks = (int)(avgChunks * 16 * 16);
 
                 source.sendSuccess(() -> Component.literal("Spawn Frequency:")
                     .withStyle(ChatFormatting.AQUA), false);
                 source.sendSuccess(() -> Component.literal("  ~1 structure per " +
-                    String.format("%.0f", averageChunksPerStructure) + " chunks")
+                    String.format("%.0f", avgChunks) + " chunks")
                     .withStyle(ChatFormatting.GRAY), false);
                 source.sendSuccess(() -> Component.literal("  ~1 structure per " +
-                    String.format("%,d", averageBlocksPerStructure) + " blocks²")
+                    String.format("%,d", avgBlocks) + " blocks²")
                     .withStyle(ChatFormatting.GRAY), false);
                 source.sendSuccess(() -> Component.literal(""), false);
             }
 
-            // --- MVS STATUS ---
-            boolean isBlocked = MVSConfig.blockStructureSets.contains(structureSetId);
-            boolean isIntercepted = MVSConfig.interceptStructureSets.contains(structureSetId);
-
+            // MVS Status
             source.sendSuccess(() -> Component.literal("MVS Status:")
                 .withStyle(ChatFormatting.AQUA), false);
 
-            if (isBlocked) {
+            if (info.isBlocked) {
                 source.sendSuccess(() -> Component.literal("  ⛔ BLOCKED - Structure set will not spawn")
                     .withStyle(ChatFormatting.RED), false);
-            } else if (isIntercepted) {
+            } else if (info.isIntercepted) {
                 source.sendSuccess(() -> Component.literal("  ⚡ INTERCEPTED - MVS filter-first strategy")
                     .withStyle(ChatFormatting.YELLOW), false);
             } else {
@@ -140,47 +118,27 @@ public class StructureSetCommands {
             }
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // --- STRUCTURES IN SET ---
-            var structures = structureSet.structures();
-            int structureCount = structures.size();
-
+            // Structures in set
+            int structureCount = info.structures.size();
             source.sendSuccess(() -> Component.literal("Structures in Set: " + structureCount)
                 .withStyle(ChatFormatting.AQUA), false);
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // Collect structure info
-            List<StructureEntry> entries = new ArrayList<>();
-            for (var entry : structures) {
-                var structureHolder = entry.structure();
-                var structure = structureHolder.value();
-                int weight = entry.weight();
-
-                // Get structure ID
-                ResourceLocation structureId = structureRegistry.getKey(structure);
-                if (structureId != null) {
-                    entries.add(new StructureEntry(structureId.toString(), weight));
-                }
-            }
-
-            // Calculate total weight
-            int totalWeight = entries.stream().mapToInt(e -> e.weight).sum();
-
-            // Show structures (limit to 5 unless full)
+            // Show structures (limit unless full)
             int maxToShow = showFull ? Integer.MAX_VALUE : 15;
             int shown = 0;
-            for (StructureEntry entry : entries) {
+            for (StructureSetAnalyzer.StructureEntry entry : info.structures) {
                 if (shown >= maxToShow) break;
 
-                double percentage = totalWeight > 0 ? (entry.weight * 100.0 / totalWeight) : 0;
                 final String line = String.format("  %s (weight: %d, %.1f%%)",
-                    entry.id, entry.weight, percentage);
+                    entry.id, entry.weight, entry.percentage);
 
                 source.sendSuccess(() -> Component.literal(line)
                     .withStyle(ChatFormatting.WHITE), false);
                 shown++;
             }
 
-            // Show "... and X more" link if needed (only in truncated mode)
+            // Show "... and X more" link if needed
             if (!showFull && structureCount > maxToShow) {
                 final int remaining = structureCount - maxToShow;
 
@@ -206,19 +164,6 @@ public class StructureSetCommands {
             source.sendFailure(Component.literal("Error: " + e.getMessage()));
             MVSCommon.LOGGER.error("Error in structure set command", e);
             return 0;
-        }
-    }
-
-    /**
-     * Helper class for structure entries
-     */
-    private static class StructureEntry {
-        final String id;
-        final int weight;
-
-        StructureEntry(String id, int weight) {
-            this.id = id;
-            this.weight = weight;
         }
     }
 }

@@ -4,6 +4,7 @@ import com.mojang.brigadier.context.CommandContext;
 import com.rhett.multivillageselector.MVSCommon;
 import com.rhett.multivillageselector.config.ExclusionZone;
 import com.rhett.multivillageselector.config.MVSConfig;
+import com.rhett.multivillageselector.util.ConfigFileEditor;
 import com.rhett.multivillageselector.util.PlacementResolver;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -23,10 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Handles /mvs config fill-placements command.
@@ -67,10 +65,9 @@ public class PlacementCommands {
             source.sendSuccess(() -> Component.literal("Reading placement values from registry...")
                 .withStyle(ChatFormatting.YELLOW), false);
 
-            // Build placement section content
+            // Build placement section content using ConfigFileEditor
             StringBuilder placementContent = new StringBuilder();
-            placementContent.append("  // Placement values from registry (edit to override)\n");
-            placementContent.append("  placement: {\n");
+            placementContent.append(ConfigFileEditor.buildPlacementSectionStart());
 
             int found = 0;
             int notFound = 0;
@@ -118,21 +115,12 @@ public class PlacementCommands {
                                 ", spread_type=" + finalSpreadType + exclusionInfo)
                                 .withStyle(ChatFormatting.GRAY)), false);
 
-                        placementContent.append("    \"").append(setId).append("\": {\n");
-                        placementContent.append("      spacing: ").append(spacing).append(",\n");
-                        placementContent.append("      separation: ").append(separation).append(",\n");
-                        placementContent.append("      salt: ").append(salt).append(",\n");
-                        placementContent.append("      spreadType: \"").append(spreadType).append("\",\n");
-
-                        // Include exclusion_zone if present in registry
-                        if (exclusionZone != null) {
-                            placementContent.append("      exclusion_zone: {\n");
-                            placementContent.append("        other_set: \"").append(exclusionZone.otherSet).append("\",\n");
-                            placementContent.append("        chunk_count: ").append(exclusionZone.chunkCount).append(",\n");
-                            placementContent.append("      },\n");
-                        }
-
-                        placementContent.append("    },\n");
+                        // Use ConfigFileEditor to build the entry
+                        ConfigFileEditor.ExclusionZoneInfo zoneInfo = exclusionZone != null
+                            ? new ConfigFileEditor.ExclusionZoneInfo(exclusionZone.otherSet, exclusionZone.chunkCount)
+                            : null;
+                        placementContent.append(ConfigFileEditor.buildPlacementEntry(
+                            setId, spacing, separation, salt, spreadType, zoneInfo));
                     } else {
                         notFound++;
                         String placementType = placement.getClass().getSimpleName();
@@ -150,7 +138,7 @@ public class PlacementCommands {
                 }
             }
 
-            placementContent.append("  },\n");
+            placementContent.append(ConfigFileEditor.buildPlacementSectionEnd());
 
             if (found == 0) {
                 source.sendFailure(Component.literal("No valid placements found to write")
@@ -161,8 +149,8 @@ public class PlacementCommands {
             // Read existing config
             String configContent = Files.readString(CONFIG_PATH, StandardCharsets.UTF_8);
 
-            // Update config with placement section
-            String updatedContent = insertOrReplacePlacement(configContent, placementContent.toString());
+            // Update config with placement section using ConfigFileEditor
+            String updatedContent = ConfigFileEditor.insertOrReplacePlacement(configContent, placementContent.toString());
 
             // Write back
             Files.writeString(CONFIG_PATH, updatedContent, StandardCharsets.UTF_8);
@@ -204,53 +192,6 @@ public class PlacementCommands {
             MVSCommon.LOGGER.error("Error in fill-placements command", e);
             return 0;
         }
-    }
-
-    /**
-     * Insert or replace placement section in config content.
-     * Tries to preserve other content and comments.
-     */
-    private static String insertOrReplacePlacement(String content, String placementSection) {
-        // Pattern to match existing placement section (handles JSON5 with comments)
-        // Matches: placement: { ... }, (with possible nested braces)
-        Pattern existingPattern = Pattern.compile(
-            "(^|\\n)(\\s*)placement\\s*:\\s*\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\},?\\s*\\n?",
-            Pattern.MULTILINE
-        );
-
-        Matcher matcher = existingPattern.matcher(content);
-        if (matcher.find()) {
-            // Replace existing placement section
-            return matcher.replaceFirst("$1" + Matcher.quoteReplacement(placementSection) + "\n");
-        }
-
-        // No existing placement section - insert before debug_cmd, debug_logging, or closing brace
-        // Try to find a good insertion point
-
-        // Look for biome_frequency section end, insert after it
-        Pattern biomeFreqEnd = Pattern.compile("(biome_frequency\\s*:\\s*\\{[^{}]*\\},?)\\s*\\n", Pattern.MULTILINE);
-        Matcher biomeFreqMatcher = biomeFreqEnd.matcher(content);
-        if (biomeFreqMatcher.find()) {
-            int insertPos = biomeFreqMatcher.end();
-            return content.substring(0, insertPos) + "\n" + placementSection + "\n" + content.substring(insertPos);
-        }
-
-        // Look for debug_cmd or debug_logging, insert before it
-        Pattern debugPattern = Pattern.compile("(\\n)(\\s*)(debug_cmd|debug_logging)\\s*:", Pattern.MULTILINE);
-        Matcher debugMatcher = debugPattern.matcher(content);
-        if (debugMatcher.find()) {
-            int insertPos = debugMatcher.start() + 1; // After the newline
-            return content.substring(0, insertPos) + "\n" + placementSection + "\n" + content.substring(insertPos);
-        }
-
-        // Last resort: insert before final closing brace
-        int lastBrace = content.lastIndexOf('}');
-        if (lastBrace > 0) {
-            return content.substring(0, lastBrace) + "\n" + placementSection + "\n" + content.substring(lastBrace);
-        }
-
-        // Shouldn't happen with valid config
-        return content + "\n" + placementSection;
     }
 
     /**

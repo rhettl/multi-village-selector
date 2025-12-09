@@ -63,3 +63,14 @@ allprojects {
         toolchain.languageVersion = JavaLanguageVersion.of(21)
     }
 }
+
+// Root-level task to run tests with coverage
+tasks.register('coverage') {
+    group = 'verification'
+    description = 'Runs tests and generates JaCoCo coverage report'
+    dependsOn ':common:test', ':common:jacocoTestReport'
+
+    doLast {
+        println "\nCoverage report: file://${project(':common').layout.buildDirectory.get()}/reports/jacoco/test/html/index.html"
+    }
+}

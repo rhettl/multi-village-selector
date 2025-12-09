@@ -5,6 +5,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.rhett.multivillageselector.MVSCommon;
 import com.rhett.multivillageselector.config.MVSConfig;
 import com.rhett.multivillageselector.util.BiomeRules;
+import com.rhett.multivillageselector.util.StructureSetAnalyzer;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.network.chat.Component;
@@ -12,7 +13,6 @@ import net.minecraft.resources.ResourceLocation;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Handles all /mvs test subcommands
@@ -29,13 +29,12 @@ public class TestCommands {
 
         try {
             var registryAccess = source.getServer().registryAccess();
-            var structureRegistry = registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
 
-            // Check if structure exists in registry
-            ResourceLocation structureLoc = ResourceLocation.parse(structureId);
-            var structure = structureRegistry.get(structureLoc);
+            // Use StructureSetAnalyzer for status check
+            StructureSetAnalyzer.StructureStatus status =
+                StructureSetAnalyzer.getStructureStatus(structureId, registryAccess);
 
-            if (structure == null) {
+            if (!status.exists) {
                 source.sendFailure(Component.literal("Structure not found in registry: " + structureId));
                 return 0;
             }
@@ -45,11 +44,8 @@ public class TestCommands {
                 .withStyle(ChatFormatting.GOLD), false);
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // Check if MVS-controlled
-            boolean isMVSControlled = MVSConfig.structurePool.stream()
-                .anyMatch(s -> s.structure != null && s.structure.toString().equals(structureId));
-
-            if (isMVSControlled) {
+            // MVS Controlled
+            if (status.isMVSControlled) {
                 source.sendSuccess(() -> Component.literal("✓ MVS Controlled: YES")
                     .withStyle(ChatFormatting.GREEN), false);
                 source.sendSuccess(() -> Component.literal("  This structure is in the MVS structure_pool")
@@ -63,23 +59,14 @@ public class TestCommands {
 
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // Check if blacklisted
-            boolean isBlacklisted = MVSConfig.blacklistedStructures.stream()
-                .anyMatch(pattern -> com.rhett.multivillageselector.util.PatternMatcher.matches(structureId, pattern));
-
-            if (isBlacklisted) {
+            // Blacklisted
+            if (status.isBlacklisted) {
                 source.sendSuccess(() -> Component.literal("⛔ Blacklisted: YES")
                     .withStyle(ChatFormatting.RED), false);
                 source.sendSuccess(() -> Component.literal("  This structure will NOT spawn (blacklisted)")
                     .withStyle(ChatFormatting.GRAY), false);
 
-                // Show which pattern matched
-                String matchedPattern = MVSConfig.blacklistedStructures.stream()
-                    .filter(pattern -> com.rhett.multivillageselector.util.PatternMatcher.matches(structureId, pattern))
-                    .findFirst()
-                    .orElse("(unknown)");
-
-                final String pattern = matchedPattern;
+                final String pattern = status.matchedBlacklistPattern;
                 source.sendSuccess(() -> Component.literal("  Matched pattern: " + pattern)
                     .withStyle(ChatFormatting.DARK_GRAY), false);
             } else {
@@ -91,17 +78,13 @@ public class TestCommands {
 
             source.sendSuccess(() -> Component.literal(""), false);
 
-            // Check structure_set status (need to find which structure_set this structure belongs to)
-            // This requires scanning structure_sets in the registry
-            String structureSetId = findStructureSet(structure, registryAccess);
-
-            if (structureSetId != null) {
-                source.sendSuccess(() -> Component.literal("Structure Set: " + structureSetId)
+            // Structure set status
+            if (status.structureSetId != null) {
+                final String setId = status.structureSetId;
+                source.sendSuccess(() -> Component.literal("Structure Set: " + setId)
                     .withStyle(ChatFormatting.AQUA), false);
 
-                // Check if structure_set is blocked
-                boolean isSetBlocked = MVSConfig.blockStructureSets.contains(structureSetId);
-                if (isSetBlocked) {
+                if (status.isSetBlocked) {
                     source.sendSuccess(() -> Component.literal("  ⛔ Structure set is BLOCKED")
                         .withStyle(ChatFormatting.RED), false);
                     source.sendSuccess(() -> Component.literal("     Entire structure_set will not spawn")
@@ -111,9 +94,7 @@ public class TestCommands {
                         .withStyle(ChatFormatting.GREEN), false);
                 }
 
-                // Check if structure_set is intercepted
-                boolean isSetIntercepted = MVSConfig.interceptStructureSets.contains(structureSetId);
-                if (isSetIntercepted) {
+                if (status.isSetIntercepted) {
                     source.sendSuccess(() -> Component.literal("  ⚡ Structure set is INTERCEPTED by MVS")
                         .withStyle(ChatFormatting.YELLOW), false);
                     source.sendSuccess(() -> Component.literal("     MVS controls spawning for this structure_set")
@@ -130,10 +111,7 @@ public class TestCommands {
             source.sendSuccess(() -> Component.literal(""), false);
 
             // Final verdict
-            boolean willSpawn = !isBlacklisted &&
-                               (structureSetId == null || !MVSConfig.blockStructureSets.contains(structureSetId));
-
-            if (willSpawn) {
+            if (status.willSpawn) {
                 source.sendSuccess(() -> Component.literal("Verdict: Structure CAN spawn")
                     .withStyle(ChatFormatting.GREEN), false);
             } else {
@@ -147,40 +125,6 @@ public class TestCommands {
             MVSCommon.LOGGER.error("Error in test structure command", e);
             return 0;
         }
-    }
-
-    /**
-     * Find which structure_set contains this structure
-     */
-    private static String findStructureSet(net.minecraft.world.level.levelgen.structure.Structure structure,
-                                           net.minecraft.core.RegistryAccess registryAccess) {
-        try {
-            var structureSetRegistry = registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE_SET);
-            var structureRegistry = registryAccess.registryOrThrow(net.minecraft.core.registries.Registries.STRUCTURE);
-
-            ResourceLocation structureId = structureRegistry.getKey(structure);
-            if (structureId == null) return null;
-
-            // Search through all structure_sets
-            for (var entry : structureSetRegistry.entrySet()) {
-                var structureSet = entry.getValue();
-                var structureSetId = entry.getKey().location();
-
-                // Check if this structure is in this structure_set
-                for (var structureEntry : structureSet.structures()) {
-                    var entryStructure = structureEntry.structure().value();
-                    ResourceLocation entryId = structureRegistry.getKey(entryStructure);
-
-                    if (entryId != null && entryId.equals(structureId)) {
-                        return structureSetId.toString();
-                    }
-                }
-            }
-        } catch (Exception e) {
-            // Ignore errors
-        }
-
-        return null;
     }
 
     /**
