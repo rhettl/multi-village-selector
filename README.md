@@ -110,7 +110,6 @@ These mods will still apply their changes to whatever village MVS selects, usual
 
 ## Known Bugs
 
-- **No villages near world spawn** - Villages won't spawn within ~8-16 chunks of (0,0). Explore further out.
 - **Better Village spacing override** - Better Village mod overrides spacing settings at runtime. See [Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md#known-bugs).
 
 See **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md#known-bugs)** for details and workarounds.

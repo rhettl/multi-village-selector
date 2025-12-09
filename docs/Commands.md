@@ -11,6 +11,13 @@ All commands require **OP level 2** on dedicated servers. Single-player allows a
 | `/mvs generate` | Generate config from installed mods |
 | `/mvs config reload` | Reload config without restart |
 
+### Locate Commands
+
+| Command | Description |
+|---------|-------------|
+| `/mvs locate <structure>` | Find nearest instance of a structure |
+| `/mvs locate <structure> more` | Find multiple instances (up to 10) |
+
 ### Biome Commands
 
 Commands for inspecting biome information.
@@ -81,7 +88,7 @@ After running, a description of where the file is located and a link to open it 
 Shows MVS status at a glance.
 
 ```
-=== Multi Village Selector v0.3.1 ===
+=== Multi Village Selector v0.4.0 ===
 
 Status: ENABLED
 Pool Size: 47 structures
@@ -138,6 +145,47 @@ Biomes with tag #minecraft:is_forest:
   minecraft:birch_forest
   ...
 ```
+
+---
+
+## /mvs locate
+
+*Added in v0.4.0*
+
+Find the nearest MVS-controlled structure. Uses MVS placement algorithm for accurate predictions.
+
+### /mvs locate \<structure\>
+
+Find the single nearest instance of a structure.
+
+```
+/mvs locate bca:village/default_mid
+
+Found bca:village/default_mid at [192, 0, -384] (543 blocks)
+  Biome: terralith:alpine_highlands
+  [Click to teleport]
+```
+
+The result includes a clickable teleport link.
+
+### /mvs locate \<structure\> more
+
+Find multiple instances (up to 10), sorted by distance.
+
+```
+/mvs locate minecraft:village_plains more
+
+=== Locate Results: minecraft:village_plains ===
+
+#1 [96, 0, 192] (plains) 91m
+#2 [96, 0, 96] (plains) 105m
+#3 [0, 0, 288] (plains) 129m
+... and 7 more
+```
+
+Each result is clickable for teleportation.
+
+**Note:** `/mvs locate` only finds structures in the MVS pool. For non-MVS structures, use vanilla `/locate structure`.
 
 ---
 
@@ -308,6 +356,10 @@ Structures:
 
 # Generate config
 /mvs generate
+
+# Locate structures (v0.4.0)
+/mvs locate bca:village/default_mid
+/mvs locate minecraft:village_plains more
 
 # Biome info
 /mvs biome

@@ -30,6 +30,7 @@ Generate a complete config: `/mvs generate` → outputs to `local/mvs/multivilla
 | `blacklisted_structures` | string[] | `[]` | Structure IDs to never spawn                                   |
 | `biome_frequency` | object | `{}` | Spawn rate multiplier per biome ([details](#biome_frequency))  |
 | `relaxed_biome_validation` | boolean | `false` | Bypass vanilla's biome check ([details](#relaxed_biome_validation)) |
+| `placement` | object | `{}` | Override structure placement settings ([details](#placement)) |
 | `debug_cmd` | boolean | `false` | Enable `/mvs debug` commands                                   |
 | `debug_logging` | boolean | `false` | Log spawn attempts to `latest.log`                             |
 
@@ -162,6 +163,82 @@ Controls whether vanilla's secondary biome validation is enforced.
 ```json5
 // Recommended for modpacks with BCA, large CTOV villages, etc.
 relaxed_biome_validation: true,
+```
+
+---
+
+## placement
+
+*Added in v0.4.0*
+
+Override the placement algorithm for intercepted structure sets. When empty (`{}`), MVS uses registry values from the original structure set.
+
+### Fields
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `spacing` | int | (registry) | Grid cell size in chunks. Villages spawn at most once per cell. |
+| `separation` | int | (registry) | Minimum chunks between villages. Must be < spacing. |
+| `salt` | int | (registry) | Seed modifier for placement RNG. Change to shift the grid. |
+| `spreadType` | string | (registry) | Distribution pattern within cells. See below. |
+| `strategy` | string | `"random_spread"` | Placement algorithm. Currently only `random_spread` supported. |
+| `exclusion_zone` | object | (registry) | Keep structures away from another set. See below. |
+
+### Spread Types
+
+| Type | Distribution | Status |
+|------|--------------|--------|
+| `LINEAR` | Uniform random anywhere in cell | Stable (vanilla default) |
+| `TRIANGULAR` | Bell curve biased toward cell center | Stable (vanilla option) |
+| `GAUSSIAN` | Strong center bias with rare edge spawns | *Experimental* |
+| `EDGE_BIASED` | Biased toward cell edges | *Experimental* |
+| `CORNER_BIASED` | Pushed toward cell corners | *Experimental* |
+| `FIXED_CENTER` | Always at exact cell center (deterministic) | *Experimental* |
+
+*Experimental spread types are implemented but less tested. Report issues on GitHub.*
+
+### Exclusion Zone
+
+Prevents structures from spawning near another structure set. Vanilla uses this for pillager outposts (won't spawn within 10 chunks of villages).
+
+```json5
+exclusion_zone: {
+  other_set: "minecraft:villages",  // Structure set to avoid
+  chunk_count: 10                   // Minimum chunks away (1-16)
+}
+```
+
+### Example
+
+```json5
+placement: {
+  spacing: 34,           // One village per 34×34 chunk region
+  separation: 8,         // At least 8 chunks between villages
+  salt: 10387312,        // Default village salt
+  spreadType: "TRIANGULAR"  // Cluster toward region centers
+}
+```
+
+### Spacing Guide
+
+| Density | Spacing | Separation | Avg Distance |
+|---------|---------|------------|--------------|
+| Very Dense | 10 | 4 | ~160 blocks |
+| Dense | 20 | 8 | ~320 blocks |
+| Default | 34 | 8 | ~544 blocks |
+| Sparse | 50 | 12 | ~800 blocks |
+| Very Sparse | 80 | 20 | ~1280 blocks |
+
+**Formula:** Average distance ≈ `spacing × 16 × 0.7` blocks (varies by spread type)
+
+### Empty Placement
+
+When `placement: {}` or omitted, MVS reads values from the registry:
+
+```
+/mvs info
+  ⚡ minecraft:villages
+      spacing: 34 (registry), separation: 8 (registry), salt: 10387312 (registry)
 ```
 
 ---
