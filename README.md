@@ -11,6 +11,7 @@ When you install multiple village mods (Cobblemon Additions, ChoiceTheorem's Ove
 - **Intercepting** vanilla village spawns before any mod processes them
 - **Selecting** from all configured village structures using weighted random selection
 - **Respecting** biome rules so desert villages spawn in deserts, snowy villages in snow, etc.
+- **Providing** you control over village spawning and the mix/ratio of different village types
 
 ## Download
 
@@ -37,7 +38,7 @@ For detailed setup instructions, see the **[Getting Started Guide](https://githu
 
 ## Configuration
 
-MVS uses a JSON5 config file with three main sections:
+MVS uses a JSON5 config file with four main sections:
 
 ```json5
 {
@@ -54,6 +55,14 @@ MVS uses a JSON5 config file with three main sections:
   // Optional: Reduce spawn rate in specific biomes
   biome_frequency: {
     "#minecraft:is_ocean": 0.3,  // Only 30% of ocean spawn attempts proceed
+  },
+
+  // Optional: Control village density (vanilla defaults shown)
+  placement: {
+    "minecraft:villages": {
+      spacing: 34,
+      separation: 8,
+    }
   }
 }
 ```
@@ -65,10 +74,12 @@ See the **[Configuration Guide](https://github.com/RhettL/multi-village-selector
 ```bash
 /mvs generate              # Scan mods and generate config
 /mvs biome                 # Show current biome info
+/mvs locate <structure>    # Find nearest structure with teleport links
 /mvs structure biomes <id> # Show biome rules for a structure
 /mvs structure pool        # List structures in MVS config pool
 /mvs structure list        # Dump all game structures to file
 /mvs structure nearby      # List structures near player
+/mvs structure predict     # Predict what would spawn at current location
 /mvs help                  # Show all commands
 ```
 
@@ -76,16 +87,25 @@ See the **[Commands Reference](https://github.com/RhettL/multi-village-selector/
 
 ## Supported Mods
 
-MVS works with mods that **add new village structures** to structure sets:
+MVS works with mods that **add new villages** to structure sets:
 
 - **Vanilla Minecraft** - All 5 village types
 - **Cobblemon Additions (BCA)** - Cobblemon-themed villages
-- **ChoiceTheorem's Overhauled Village (CTOV)** 
+- **ChoiceTheorem's Overhauled Village (CTOV)**
 - **Towns & Towers**
 - **Terralith**
 - And many more...
 
 Some mods require disabling their own village spawning. See **[Mod Compatibility](https://github.com/RhettL/multi-village-selector/blob/master/docs/ModCompatibility.md)** for setup instructions.
+
+### Tested Compatible Mods
+
+These mods have been tested alongside MVS without issues:
+
+- **C2ME** - Concurrent chunk generation works fine with MVS
+- **Explorer's Compass** - Structure location still works
+- **Nature's Compass** - Biome location still works
+- **Chunky** - Pre-generation works correctly with MVS structures
 
 ### What MVS Cannot Control
 
@@ -94,7 +114,7 @@ MVS intercepts **structure selection**, not **jigsaw piece assembly**. Mods that
 - **Better Villages** - Replaces vanilla village jigsaw pieces
 - **Luki's Grand Capitals** - Replaces/extends vanilla village pieces
 
-These mods will still apply their changes to whatever village MVS selects, usually the vanilla villages. This is usually fine if you only use one - MVS picks which village type spawns, then the jigsaw replacer modifies its buildings. But MVS doesn't help you with fighting between those type of mods.
+These mods will still apply their changes to whatever village MVS selects, usually the vanilla villages. This is usually fine if you only use one - MVS picks which village type spawns, then the jigsaw replacer modifies its buildings. But MVS doesn't help you with fighting between those types of mods.
 
 ## Documentation
 
@@ -108,11 +128,12 @@ These mods will still apply their changes to whatever village MVS selects, usual
 | **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md)** | Common issues and solutions |
 | **[Project Scope](https://github.com/RhettL/multi-village-selector/blob/master/docs/Scope.md)** | Design philosophy and limitations |
 
-## Known Bugs
+## Known Issues
 
-- **Better Village spacing override** - Better Village mod overrides spacing settings at runtime. See [Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md#known-bugs).
+- **Large mod structures may fail biome validation** - Structures with large starter pieces (BCA, Terralith) can fail vanilla's biome check. Use `relaxed_biome_validation: true` in config.
+- **Terralith sky biomes** - Terralith adds 3D biomes above ground level. Structures on tall terrain may sample a sky biome instead of the expected surface biome, causing biome validation failures.
 
-See **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md#known-bugs)** for details and workarounds.
+See **[Troubleshooting](https://github.com/RhettL/multi-village-selector/blob/master/docs/Troubleshooting.md)** for details and workarounds.
 
 ## FAQ
 
@@ -134,6 +155,9 @@ Yes! Please file an [issue](https://github.com/RhettL/multi-village-selector/iss
 #### Can you do this for all structures?
 That's harder. Managing ALL structure pools this way is much more complex. I'm considering it, but honestly comprehensive datapacks are probably easier for that use case.
 
+#### How do I make villages spawn more or less often?
+Use the `placement` config section to adjust `spacing` and `separation`. See the **[Spacing Guide](https://github.com/RhettL/multi-village-selector/blob/master/docs/SpacingGuide.md)** for details and recommendations.
+
 ## Contributing
 
 Contributions are welcome! Please:
@@ -146,9 +170,9 @@ For bug reports and feature requests, use [GitHub Issues](https://github.com/Rhe
 
 ## Authors
 
-**Project Design:** [RhettL](https://github.com/RhettL)
+**Project Design:** [RhettL](https://github.com/RhettL) -- Rhett takes no responsibility for the code in this repo, he didn't write any of it.
 
-**Implementation:** This mod was developed entirely with [Claude Code](https://claude.ai/code) (Claude Opus 4.5), an AI coding assistant by Anthropic. RhettL provided design direction and testing.
+**Implementation:** This mod was developed entirely with [Claude Code](https://claude.ai/code) (Claude Sonnet 4.5), an AI coding assistant by Anthropic. RhettL provided design direction and testing.
 
 ## License
 
@@ -157,7 +181,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 ## Acknowledgments
 
 - Village mod creators for their amazing structures
+- [Cobblemon Additions](https://modrinth.com/mod/cobblemon-additions) creators for encouragement and allowing me to tell people about this mod on their Discord
 - [Architectury](https://architectury.dev/) for multi-loader support
 - [json5-java](https://github.com/marhali/json5-java) for config parsing
 - [NeoForge](https://neoforged.net/) and [Fabric](https://fabricmc.net/) teams
-- Claude Code (Sonnet 4.5) for doing most of the work coding this at RhettL's Direction.
+- Claude Code (Sonnet 4.5) for doing most of the work coding this at RhettL's direction

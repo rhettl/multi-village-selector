@@ -16,6 +16,8 @@ Config file: `config/multivillageselector.json5` (JSON5 format - comments allowe
 
 Generate a complete config: `/mvs generate` → outputs to `local/mvs/multivillageselector.json5`
 
+**Note:** Spacing, frequency, weight, and biomes **all** play a part in village selection and density.
+
 ---
 
 ## Config Fields
@@ -29,8 +31,8 @@ Generate a complete config: `/mvs generate` → outputs to `local/mvs/multivilla
 | `structure_pool` | object[] | `[]` | Structures available for spawning ([details](#structure_pool)) |
 | `blacklisted_structures` | string[] | `[]` | Structure IDs to never spawn                                   |
 | `biome_frequency` | object | `{}` | Spawn rate multiplier per biome ([details](#biome_frequency))  |
-| `relaxed_biome_validation` | boolean | `false` | Bypass vanilla's biome check ([details](#relaxed_biome_validation)) |
 | `placement` | object | `{}` | Override structure placement settings ([details](#placement)) |
+| `relaxed_biome_validation` | boolean | `false` | Bypass vanilla's biome check ([details](#relaxed_biome_validation)) |
 | `debug_cmd` | boolean | `false` | Enable `/mvs debug` commands                                   |
 | `debug_logging` | boolean | `false` | Log spawn attempts to `latest.log`                             |
 
@@ -43,7 +45,10 @@ Array of structure entries defining what can spawn and where.
 ### Entry Format
 
 ```json5
-{ structure: "<id>", biomes: { "<pattern>": <weight>, ... } }
+structure_pool: [
+  { structure: "<id>", biomes: { "<pattern>": <weight>, ... } },
+  { structure: "<pattern>", biomes: { "<pattern>": <weight>, ... } },
+]
 ```
 
 | Field | Type | Description |
@@ -102,6 +107,43 @@ Weights are relative within a biome. Target average: **25**.
 { structure: "C", biomes: {"#minecraft:has_structure/village_plains": 10} },
 ```
 
+**Weights are per-biome.** Structures only compete with others in the same biome:
+
+```json5
+// Plains structures (compete with each other)
+{ structure: "minecraft:village_plains", biomes: {"#minecraft:has_structure/village_plains": 25} },
+{ structure: "ctov:small/village_plains", biomes: {"#minecraft:has_structure/village_plains": 50} },
+{ structure: "bca:village/default_mid", biomes: {"#minecraft:has_structure/village_plains": 25} },
+// → In plains: vanilla=25%, ctov=50%, bca=25%
+
+// Desert structures (separate competition)
+{ structure: "minecraft:village_desert", biomes: {"#minecraft:has_structure/village_desert": 40} },
+{ structure: "ctov:small/village_desert", biomes: {"#minecraft:has_structure/village_desert": 60} },
+// → In desert: vanilla=40%, ctov=60%
+```
+
+The plains weights (25, 50, 25) don't affect desert selection, and vice versa.
+
+
+**Structures can have weights in multiple biomes:**
+
+```json5
+// This structure spawns in plains (weight 25) AND desert (weight 5)
+{ structure: "minecraft:village_plains", biomes: {
+  "#minecraft:has_structure/village_plains": 25,  // Competes in plains
+  "#minecraft:has_structure/village_desert": 5,   // Also competes in desert (rare)
+} },
+{ structure: "ctov:small/village_plains", biomes: {"#minecraft:has_structure/village_plains": 50} },
+{ structure: "bca:village/default_mid", biomes: {"#minecraft:has_structure/village_plains": 25} },
+
+{ structure: "minecraft:village_desert", biomes: {"#minecraft:has_structure/village_desert": 40} },
+{ structure: "ctov:small/village_desert", biomes: {"#minecraft:has_structure/village_desert": 60} },
+
+// In plains (total=100): village_plains=25%, ctov_plains=50%, bca=25%
+// In desert (total=105): village_plains=5%, village_desert=38%, ctov_desert=57%
+```
+
+
 ### Wildcards
 
 Structure patterns expand at load time:
@@ -137,41 +179,11 @@ Same pattern matching as `biomes` in structure_pool.
 
 ---
 
-## relaxed_biome_validation
-
-Controls whether vanilla's secondary biome validation is enforced.
-
-**Background:** When MVS selects a structure, it samples the biome at the chunk center. However, vanilla performs a second biome check at the structure's *bounding box center* after jigsaw assembly. For large structures, these positions can differ significantly, causing the structure to be rejected even though MVS selected it.
-
-| Structure Type | Starter Size | BB Center Offset | Issue Likelihood |
-|----------------|--------------|------------------|------------------|
-| Vanilla villages | 9-15 blocks | +4 to +8 | Low |
-| CTOV small/medium | 10-20 blocks | +5 to +10 | Low |
-| BCA default_mid | 37×38 blocks | +18, +19 | Medium |
-| BCA academy | 49×73 blocks | +24, +36 | High |
-
-**When `false` (default):**
-- Vanilla validates biome at the structure's bounding box center
-- Works well for vanilla-sized structures
-- May reject large mod structures whose BB center lands in a different biome
-
-**When `true`:**
-- Bypass vanilla's biome check entirely
-- Trust MVS's chunk-center selection
-- Recommended for modpacks with large village structures (BCA, CTOV large, etc.)
-
-```json5
-// Recommended for modpacks with BCA, large CTOV villages, etc.
-relaxed_biome_validation: true,
-```
-
----
-
 ## placement
 
 *Added in v0.4.0*
 
-Override the placement algorithm for intercepted structure sets. When empty (`{}`), MVS uses registry values from the original structure set.
+Override the placement algorithm for any structure set. When empty (`{}`), MVS uses registry values from the original structure set.
 
 ### Fields
 
@@ -186,16 +198,18 @@ Override the placement algorithm for intercepted structure sets. When empty (`{}
 
 ### Spread Types
 
-| Type | Distribution | Status |
-|------|--------------|--------|
-| `LINEAR` | Uniform random anywhere in cell | Stable (vanilla default) |
-| `TRIANGULAR` | Bell curve biased toward cell center | Stable (vanilla option) |
-| `GAUSSIAN` | Strong center bias with rare edge spawns | *Experimental* |
-| `EDGE_BIASED` | Biased toward cell edges | *Experimental* |
-| `CORNER_BIASED` | Pushed toward cell corners | *Experimental* |
-| `FIXED_CENTER` | Always at exact cell center (deterministic) | *Experimental* |
+| Type | Distribution | Status                           |
+|------|--------------|----------------------------------|
+| `linear` | Uniform random anywhere in cell | Stable (vanilla villages use this) |
+| `triangular` | Bell curve biased toward cell center | Stable (vanilla option) |
+| `gaussian` | Strong center bias with rare edge spawns | *Experimental*                   |
+| `edge_biased` | Biased toward cell edges | *Experimental*                   |
+| `corner_biased` | Pushed toward cell corners | *Experimental*                   |
+| `fixed_center` | Always at exact cell center (deterministic) | *Experimental*                   |
 
-*Experimental spread types are implemented but less tested. Report issues on GitHub.*
+*Experimental spread types are implemented but less tested. Report issues on [GitHub](https://github.com/RhettL/multi-village-selector/issues).*
+
+For visual diagrams of each spread type, see the **[Spread Types Guide](SpreadTypes.md)**.
 
 ### Exclusion Zone
 
@@ -210,16 +224,40 @@ exclusion_zone: {
 
 ### Example
 
+Keys are structure set IDs. Each set can have its own placement settings:
+
 ```json5
-placement: {
-  spacing: 34,           // One village per 34×34 chunk region
-  separation: 8,         // At least 8 chunks between villages
-  salt: 10387312,        // Default village salt
-  spreadType: "TRIANGULAR"  // Cluster toward region centers
+{
+  intercept_structure_sets: ["minecraft:villages"],
+
+  placement: {
+    // Villages cannot spawn within 8 chunks of desert temples
+    "minecraft:villages": {
+      spacing: 34,
+      separation: 8,
+      spreadType: "triangular",
+      exclusion_zone: {
+        other_set: "minecraft:desert_temples",
+        chunk_count: 8
+      }
+    },
+    // Jungle temples cannot spawn within 10 chunks of villages
+    "minecraft:jungle_temples": {
+      // spacing: will inherit
+      // separation: will inherit
+      exclusion_zone: {
+        other_set: "minecraft:villages",
+        chunk_count: 10
+      }
+    }
+  }
 }
+// Note: Exclusion zones are one-directional.
+// Villages avoid desert temples, jungle temples avoid villages.
+// But desert temples can still spawn next to jungle temples!
 ```
 
-### Spacing Guide
+### Spacing Quick Reference
 
 | Density | Spacing | Separation | Avg Distance |
 |---------|---------|------------|--------------|
@@ -229,7 +267,9 @@ placement: {
 | Sparse | 50 | 12 | ~800 blocks |
 | Very Sparse | 80 | 20 | ~1280 blocks |
 
-**Formula:** Average distance ≈ `spacing × 16 × 0.7` blocks (varies by spread type)
+**Keep in mind:** Spacing, frequency, weight, and biomes **all** play a part in village selection and density.
+
+For detailed explanations, formulas, and recommendations, see the **[Spacing Guide](SpacingGuide.md)**.
 
 ### Empty Placement
 
@@ -239,6 +279,36 @@ When `placement: {}` or omitted, MVS reads values from the registry:
 /mvs info
   ⚡ minecraft:villages
       spacing: 34 (registry), separation: 8 (registry), salt: 10387312 (registry)
+```
+
+---
+
+## relaxed_biome_validation
+
+Controls whether vanilla's secondary biome validation is enforced. **Use this when** you are using tall biome mods like Terralith or Tectonic (steeper slopes mean biomes change at different elevations), or mods with large structures like BCA or CTOV large villages.
+
+**Background:** When MVS selects a structure, it samples the biome in the chunk. However, vanilla performs a second biome check at the structure's *bounding box center* after jigsaw assembly. For large structures, these positions can differ significantly, causing the structure to be rejected even though MVS selected it.
+
+| Structure Type | Starter Size | BB Center Offset | Issue Likelihood |
+|----------------|--------------|------------------|------------------|
+| Vanilla villages | 9-15 blocks | +4 to +8 | Low |
+| CTOV small/medium | 10-20 blocks | +5 to +10 | Low |
+| BCA default_mid | 37×38 blocks | +18, +19 | Medium |
+| BCA academy | 49×73 blocks | +24, +36 | High |
+
+**When `false` (default):**
+- Vanilla validates biome at the structure's bounding box center
+- Works well for vanilla-sized structures
+- May reject large mod structures whose bounding box center lands in a different biome
+
+**When `true`:**
+- Bypass vanilla's biome check entirely
+- Trust MVS's chunk-center selection
+- Recommended for modpacks with large village structures (BCA, CTOV large, etc.)
+
+```json5
+// Recommended for modpacks with BCA, large CTOV villages, etc.
+relaxed_biome_validation: true,
 ```
 
 ---
@@ -253,7 +323,7 @@ MVS takes control of structure selection for these sets. Usually just `["minecra
 
 ### block_structure_sets
 
-Completely disables these structure sets. Use when mods have their own village sets that would cause double-spawning. 
+Completely disables these structure sets. Use when mods have their own village sets that would cause double-spawning.
 
 ```json5
 block_structure_sets: [
@@ -312,12 +382,22 @@ debug_logging: true,  // Logs to latest.log:
     { structure: "bca:village/default_mid", biomes: {"#bca:villages": 26} },
   ],
 
-  blacklisted_structures: [],
+  blacklisted_structures: [
+    "ctov:large/village_desert"  // Too big for my taste
+  ],
 
   biome_frequency: {
     "minecraft:deep_ocean": 0.1,
     "#minecraft:is_ocean": 0.2,
     "#*:*": 1.0
+  },
+
+  // Optional: control village density (vanilla defaults shown)
+  placement: {
+    "minecraft:villages": {
+      spacing: 34,
+      separation: 8,
+    }
   },
 
   // Recommended true for BCA and other large structure mods

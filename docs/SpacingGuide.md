@@ -1,29 +1,36 @@
 # Village Spacing Guide
 
-This guide explains how to control village density (how far apart villages spawn) using datapacks. MVS controls **which** villages spawn - spacing is handled separately by Minecraft's structure_set system.
+This guide explains how to control village density (how far apart villages spawn) using MVS's placement config.
+
+**Keep in mind:** Spacing, frequency, weight, and biomes **all** play a part in village selection and density. See [Configuration](Configuration.md) for the full picture.
 
 ## Table of Contents
 
 - [Understanding Spacing](#understanding-spacing)
-- [Default Values](#default-values)
-- [Creating a Spacing Datapack](#creating-a-spacing-datapack)
-- [Testing Configurations](#testing-configurations)
-- [Compatibility Notes](#compatibility-notes)
+- [Configuring Placement](#configuring-placement)
+- [Quick Reference](#quick-reference)
+- [Using Datapacks Instead](#using-datapacks-instead)
 
 ## Understanding Spacing
 
-Village density is controlled by three parameters in Minecraft's `structure_set` definition:
+Village distance is controlled by these parameters:
 
-| Parameter | Description | Effect |
-|-----------|-------------|--------|
-| `spacing` | Maximum distance between villages (in chunks) | Higher = fewer villages |
-| `separation` | Minimum distance between villages (in chunks) | Higher = more spread out |
-| `spread_type` | Position distribution within cell | `linear` (default) or `triangular` |
-| `salt` | Random seed modifier | Changes village grid position |
+| Parameter | Description                     | Effect |
+|-----------|---------------------------------|--------|
+| `spacing` | Grid cell size in chunks        | Higher = fewer villages |
+| `separation` | Minimum chunks between villages | Higher = more spread out |
+| `spreadType` | How to choose WHERE village goes | See [Spread Types](SpreadTypes.md) |
+| `salt` | Random seed modifier            | Changes village grid position |
 
 **How it works:**
 
-Minecraft divides the world into a grid of cells, each `spacing` chunks wide. Within each cell, one village can spawn within a (spacing - separation) area, with `separation` chunks excluded from the positive X and Z edges. The `salt` offsets the grid to create variety.
+Villages default to spacing=34 and separation=8. Here's what that means:
+
+The world is divided into a grid of squares (cells). Each cell is 34x34 chunks (~544×544 blocks). At most one village can spawn per cell.
+
+The separation (8 chunks) creates a buffer zone on the edges where villages can't spawn. This keeps villages in neighboring cells from ending up right next to each other.
+
+Lower spacing = more villages. Lower separation = villages can spawn closer to cell edges.
 
 **Visual example (spacing=34, separation=8):**
 
@@ -46,46 +53,112 @@ The separation value removes chunks from the **positive X and Z edges** of each 
 
 ### Spread Type
 
-The `spread_type` parameter controls how the random position is chosen within the spawn area:
+Once the game picks a cell, `spreadType` determines WHERE inside the cell the village lands. The vanilla game offers two options: `linear` (equal chance anywhere) and `triangular` (biased toward center). MVS adds more options.
 
-**Linear (default):**
-- Uniform distribution - every position has equal probability
-- Village could spawn anywhere in the valid area
-- Used by vanilla Minecraft for villages
+See the **[Spread Types Guide](SpreadTypes.md)** for visual diagrams and all available options.
 
-**Triangular:**
-- Weighted toward the center of the spawn area
-- Villages more likely to spawn near the middle of each cell
-- Reduces chance of two villages spawning near shared cell boundaries
-- Used by BCA (Cobblemon Additions)
+## Configuring Placement
 
-```
-Linear:                          Triangular:
-+------------------+             +------------------+
-|██████████████████|             |      ██████      |
-|██████████████████|             |    ██████████    |
-|██████████████████|             |  ██████████████  |
-|██████████████████|             |██████████████████|
-+------------------+             +------------------+
- equal chance everywhere          peaks in center
+As of v0.4.0, MVS controls placement directly in your config. No datapacks needed.
+
+### Basic Example
+
+```json5
+{
+  placement: {
+    "minecraft:villages": {
+      spacing: 34,
+      separation: 8,
+    }
+  }
+}
 ```
 
-In practice, triangular spread produces more consistent spacing between villages across the world.
+### Common Configurations
 
-## Default Values
+In most cases, vanilla's 34/8 is recommended. If you have large villages, you might consider slightly more sparse with something like 40/16 or 50/12.
 
-**Vanilla Minecraft:**
-- `spacing`: 34 chunks (~544 blocks)
-- `separation`: 8 chunks (~128 blocks)
-- `salt`: 10387312
+**Very dense (for testing):**
+```json5
+placement: {
+  "minecraft:villages": {
+    spacing: 6,
+    separation: 3,
+  }
+}
+```
 
-**Result:** Villages roughly every 500-1000 blocks, never closer than 128 blocks.
+**Dense (more villages):**
+```json5
+placement: {
+  "minecraft:villages": {
+    spacing: 20,
+    separation: 6,
+  }
+}
+```
 
-## Creating a Spacing Datapack
+**Vanilla-like:**
+```json5
+placement: {
+  "minecraft:villages": {
+    spacing: 34,
+    separation: 8,
+  }
+}
+```
 
-To change village spacing, create a datapack that overrides the village structure_set.
+**Sparse (rare villages):**
+```json5
+placement: {
+  "minecraft:villages": {
+    spacing: 50,
+    separation: 12,
+  }
+}
+```
 
-### Step 1: Create Datapack Structure
+### Constraints
+
+- `separation` must be less than `spacing`
+- **Valid:** spacing=34, separation=8
+- **Valid:** spacing=34, separation=33
+- **Invalid:** spacing=8, separation=34 (villages cannot spawn)
+- **Invalid:** spacing=34, separation=34 (villages cannot spawn)
+
+### Verifying Your Settings
+
+Use `/mvs info` to see the current placement values:
+
+```
+/mvs info
+  ⚡ minecraft:villages
+      spacing: 34 (config), separation: 8 (config), salt: 10387312 (registry)
+```
+
+## Quick Reference
+
+| Use Case | spacing | separation | Cell Size |
+|----------|---------|------------|-----------|
+| Testing | 6 | 3 | ~96 blocks |
+| Dense | 16 | 4 | ~256 blocks |
+| Dense | 20 | 6 | ~320 blocks |
+| Vanilla | 34 | 8 | ~544 blocks |
+| Sparse | 50 | 12 | ~800 blocks |
+| Very Sparse | 80 | 20 | ~1280 blocks |
+
+**Note:** Cell size = spacing × 16 blocks. Villages spawn at most once per cell.
+
+## Using Datapacks Instead
+
+If you prefer to use a datapack instead of MVS's placement config, you can still do that. Datapacks give you more control but require more setup.
+
+**When to use datapacks:**
+- You want to share spacing settings without MVS
+- You need to control structure_sets MVS doesn't intercept
+- You're already familiar with datapacks
+
+### Datapack Structure
 
 ```
 your_world/datapacks/mvs_spacing/
@@ -97,187 +170,50 @@ your_world/datapacks/mvs_spacing/
                 └── villages.json
 ```
 
-### Step 2: Create pack.mcmeta
+### pack.mcmeta
 
 ```json
 {
   "pack": {
     "pack_format": 48,
-    "description": "MVS Village Spacing Override"
+    "description": "Village Spacing Override"
   }
 }
 ```
 
 **Note:** `pack_format` 48 is for Minecraft 1.21.1. Check [Minecraft Wiki](https://minecraft.wiki/w/Data_pack#Pack_format) for other versions.
 
-### Step 3: Create villages.json
-
-**Dense villages (for testing):**
+### villages.json Example
 
 ```json
 {
   "placement": {
     "type": "minecraft:random_spread",
-    "spacing": 6,
-    "separation": 3,
+    "spacing": 34,
+    "separation": 8,
     "salt": 10387312
   },
   "structures": [
-    {
-      "structure": "minecraft:village_plains",
-      "weight": 1
-    },
-    {
-      "structure": "minecraft:village_desert",
-      "weight": 1
-    },
-    {
-      "structure": "minecraft:village_savanna",
-      "weight": 1
-    },
-    {
-      "structure": "minecraft:village_snowy",
-      "weight": 1
-    },
-    {
-      "structure": "minecraft:village_taiga",
-      "weight": 1
-    }
+    { "structure": "minecraft:village_plains", "weight": 1 },
+    { "structure": "minecraft:village_desert", "weight": 1 },
+    { "structure": "minecraft:village_savanna", "weight": 1 },
+    { "structure": "minecraft:village_snowy", "weight": 1 },
+    { "structure": "minecraft:village_taiga", "weight": 1 }
   ]
 }
 ```
 
-**Sparse villages (rare):**
+**Note:** When MVS is active, it ignores the `structures` list and uses your `structure_pool` config instead. But you must include at least one valid structure for the datapack to load.
 
-```json
-{
-  "placement": {
-    "type": "minecraft:random_spread",
-    "spacing": 64,
-    "separation": 16,
-    "salt": 10387312
-  },
-  "structures": [
-    {
-      "structure": "minecraft:village_plains",
-      "weight": 1
-    }
-  ]
-}
-```
+### Enabling the Datapack
 
-**Important:** The `structures` list in the datapack doesn't matter when MVS is active - MVS uses your `structure_pool` config instead. But you must include at least one valid structure for the datapack to load.
-
-### Step 4: Enable the Datapack
-
-1. Save your datapack files
-2. In Minecraft, run: `/datapack enable "file/mvs_spacing"`
-3. Create a new world (or `/reload` for some settings)
-
-## Testing Configurations
-
-### Quick Testing Setup
-
-For rapid testing, use dense spacing:
-
-| Setting | Value | Villages Per Area |
-|---------|-------|-------------------|
-| spacing | 6 | Very dense (testing) |
-| separation | 3 | Minimum gap |
-
-**Usage:**
-```json
-"spacing": 6,
-"separation": 3
-```
-
-### Recommended Configurations
-
-**More villages than vanilla:**
-```json
-"spacing": 20,
-"separation": 6
-```
-
-**Vanilla-like:**
-```json
-"spacing": 34,
-"separation": 8
-```
-
-**Rare villages:**
-```json
-"spacing": 50,
-"separation": 12
-```
-
-**Very rare (exploration reward):**
-```json
-"spacing": 80,
-"separation": 20
-```
-
-### Separation Constraints
-
-`separation` must be less than `spacing`. If separation equals or exceeds spacing, villages cannot spawn.
-
-**Valid:** spacing=34, separation=8
-**Invalid:** spacing=8, separation=34 (will error)
-
-## Compatibility Notes
-
-### Better Village Mod
-
-**Critical:** Better Village overrides village spacing at runtime. If you're using Better Village, you must disable its custom config:
-
-Edit `config/bettervillage_1.properties`:
-```properties
-boolean.villages.enabled_custom_config=false
-```
-
-Without this, your datapack spacing will be ignored.
-
-### CristelLib
-
-If you have CristelLib installed (comes with some mods), it provides a config at:
-
-```
-config/vanilla_structures/placement_structure_config.json5
-```
-
-This can also override village spacing. Check if this file exists and conflicts with your datapack.
-
-### Other Village Mods
-
-Some village mods create their own structure_sets:
-- **CTOV**: Uses vanilla `minecraft:villages` (compatible)
-- **Towns & Towers**: Has own structure_sets (may need separate overrides)
-- **BCA**: Uses datapack override (may conflict)
-
-If villages aren't spawning at expected density, check if another mod is overriding `minecraft:villages`.
-
-## Quick Reference
-
-**Download ready-made datapacks:**
-
-- [village-spacing.zip](datapacks/village-spacing.zip) - Vanilla defaults (spacing=34, separation=8)
-- [bca-villages.zip](datapacks/bca-villages.zip) - BCA 4.1.4 defaults (spacing=34, separation=10, triangular spread, 8 BCA villages)
-
-Extract to your world's `datapacks/` folder, then edit `data/minecraft/worldgen/structure_set/villages.json` to customize.
-
-**Common configurations:**
-
-| Use Case | spacing | separation | Villages per 1000x1000 |
-|----------|---------|------------|------------------------|
-| Testing | 6 | 3 | ~25 |
-| Dense | 16 | 4 | ~4 |
-| Vanilla | 34 | 8 | ~1 |
-| Sparse | 50 | 12 | <1 |
-| Rare | 80 | 20 | Very rare |
+1. Save files to `your_world/datapacks/mvs_spacing/`
+2. Run `/datapack enable "file/mvs_spacing"`
+3. Create a new world (spacing applies on world creation)
 
 ---
 
 **See Also:**
-- [Configuration](Configuration.md) - MVS structure selection
-- [Mod Compatibility](ModCompatibility.md) - Per-mod spacing notes
-- [Troubleshooting](Troubleshooting.md) - Spacing issues
+- [Configuration](Configuration.md#placement) - Full placement config
+- [Spread Types](SpreadTypes.md) - Visual guide to spread types
+- [Mod Compatibility](ModCompatibility.md) - Per-mod notes

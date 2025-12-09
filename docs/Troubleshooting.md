@@ -1,6 +1,6 @@
 # Troubleshooting Guide
 
-Common issues and solutions for Multi Village Selector v0.3.0+.
+Common issues and solutions for Multi Village Selector.
 
 ## Table of Contents
 
@@ -18,41 +18,21 @@ Common issues and solutions for Multi Village Selector v0.3.0+.
 
 These are confirmed issues with MVS or common mod interactions. Workarounds are provided where available.
 
-### No Villages Near World Spawn
+### Large Structures Fail Biome Validation
 
-**Symptom:** Villages never spawn within approximately 8-16 chunks (~128-256 blocks) of the world spawn point (0, 0).
+**Symptom:** Large village structures (BCA, CTOV large, Terralith fortified) don't spawn on hilly or uneven terrain even when the biome seems correct.
 
-**Cause:** This appears to be related to Minecraft's structure placement grid or spawn protection. The exact cause is under investigation.
+**Cause:** Vanilla checks the biome at the structure's bounding box center after jigsaw assembly, which can land in a different biome than where MVS selected (chunk center). For large structures, these positions differ significantly.
 
-**Status:** Investigating for v0.4.0 fix.
+**Workaround:** Enable `relaxed_biome_validation: true` in your config. See [Configuration](Configuration.md#relaxed_biome_validation) for details.
 
-**Workaround:** Explore further from spawn. Villages will spawn normally once you're beyond ~300 blocks from (0, 0). This is also why testing should be done 1000+ blocks from spawn.
+### Terralith Tall and 3D Biomes
 
-### Better Village Spacing Override
+**Symptom:** Structures on tall terrain fail to spawn or spawn with mismatched biomes.
 
-**Symptom:** Village density doesn't match your spacing datapack settings. Villages spawn much less frequently than expected, or only in certain biomes like oceans.
+**Cause:** Terralith adds 3D biomes above ground level. Structures on tall terrain may sample a sky biome instead of the expected surface biome.
 
-**Cause:** The Better Village mod modifies the `minecraft:villages` structure_set at runtime, overriding the spacing and separation values. Since MVS intercepts structure **selection** but not structure_set **definition**, Better Village's spacing takes precedence.
-
-**Status:** Won't fix in MVS. This is Better Village's intended behavior.
-
-**Workaround:** Disable Better Village's custom spacing in `config/bettervillage_1.properties`:
-
-```properties
-boolean.villages.enabled_custom_config=false
-```
-
-This lets your spacing datapack (or vanilla defaults) control village density while Better Village still modifies village buildings.
-
-### Spacing/Separation Not Configurable in MVS
-
-**Symptom:** You want to control village density (spacing, separation, spread_type) through MVS config but these options don't exist.
-
-**Cause:** MVS v0.3.0 controls structure **selection** only. Placement grid settings are controlled by datapacks or other mods.
-
-**Status:** Planned for v0.4.0/v1.0. MVS will add a `placement` config section to take full ownership of intercepted structure_sets.
-
-**Workaround:** Use a datapack to control spacing. See [Spacing Guide](SpacingGuide.md) for ready-made datapacks and instructions.
+**Workaround:** Same as above - use `relaxed_biome_validation: true`.
 
 ## Quick Diagnostics
 
@@ -62,6 +42,8 @@ Before diving into logs, use these commands:
 |-------|---------|---------------|
 | No villages | `/mvs biome` | Does it show structures for this biome? |
 | Wrong villages | `/mvs structure biomes <id>` | Are biome rules correct? |
+| Wrong spacing | `/mvs info` | Are placement values what you expect? |
+| Find nearest | `/mvs locate <structure>` | Is the structure spawning at all? |
 | Need fresh config | `/mvs generate` | Generate from installed mods |
 
 ## Villages Not Spawning
@@ -108,27 +90,18 @@ If your structures have biome rules that don't match where you are.
 { structure: "minecraft:village_plains", biomes: {"*:*": 10} }
 ```
 
-#### 4. Better Village Overriding Spacing
-
-Better Village overrides structure_set spacing at runtime.
-
-**Fix:** Edit `config/bettervillage_1.properties`:
-```properties
-boolean.villages.enabled_custom_config=false
-```
-
-#### 5. Biome Frequency Too Low
+#### 4. Biome Frequency Too Low
 
 If `biome_frequency` is set very low, most spawn attempts fail.
 
 **Check:**
 ```json5
 biome_frequency: {
-  "*:*": 0.1  // Only 10% spawn rate!
+  "*:*": 0.1  // Only 10% spawn rate! AKA 90% of spawns fail BEFORE choosing structure
 }
 ```
 
-**Fix:** Increase to reasonable value (0.5 - 1.0).
+**Fix:** Increase to higher value (0.5 - 1.0).
 
 ### Debug Log Patterns
 
@@ -140,8 +113,8 @@ biome_frequency: {
 **Bad - No attempts:**
 If you see no MVS entries, check:
 - `intercept_structure_sets` includes `"minecraft:villages"`
-- You explored beyond spawn (1000+ blocks)
 - It's a new world (old chunks don't regenerate)
+- Check that `config/multivillageselector.json5` is properly formatted - try [json5.net](https://json5.net/)
 
 ## Wrong Villages in Wrong Biomes
 
@@ -153,6 +126,11 @@ Stand at the village and run:
 ```
 
 Check which biome tags it has, then:
+```
+/mvs structure nearby
+```
+
+Click the structure ID to copy it, then:
 ```
 /mvs structure biomes <structure_id>
 ```
@@ -228,39 +206,93 @@ A pattern matching too many structures can dominate the pool.
 
 **Check your patterns:** `ctov:*` matches ALL CTOV structures.
 
-#### 3. CTOV Still Spawning Naturally
+#### 3. Malformed Config File
 
-If you didn't disable CTOV's spawning, you get double villages.
+If the config has syntax errors, MVS may load with an empty or partial structure pool.
 
-**Fix:** Edit `config/ctov-common.toml`:
-```toml
-[structures]
-    generatesmallVillage = false
-    generatemediumVillage = false
-    generatelargeVillage = false
-```
+**Check:** Validate your config at [json5.net](https://json5.net/)
+
+**Common issues:**
+- Missing commas between entries
+- Missing quotes around structure IDs
+- Unmatched braces `{}`, `[]`
 
 ## Too Many or Too Few Villages
 
-### Village Density Is NOT Controlled by MVS
-
-MVS controls **which** villages spawn, not **how often**.
-
 Village density is controlled by:
-- Structure set spacing (datapacks)
-- `biome_frequency` (MVS feature for per-biome control)
+- `placement` config (spacing, separation) - see [Spacing Guide](SpacingGuide.md)
+- `biome_frequency` (per-biome spawn rate modifier)
+
+Use `/mvs info` to check current placement values.
 
 ### For Too Many Villages
 
-1. **Check biome_frequency** - is it 1.0 everywhere?
-2. **Check spacing datapack** - see [Spacing Guide](SpacingGuide.md)
-3. **Check Better Village** - may override spacing
+1. **Increase spacing** - Higher spacing = fewer villages
+   ```json5
+   placement: {
+     "minecraft:villages": {
+       spacing: 50,    // Up from 34
+       separation: 12,
+     }
+   }
+   ```
+2. **Lower biome_frequency** - Reduce spawn rate in specific biomes
 
 ### For Too Few Villages
 
-1. **Check biome_frequency** - is it too low?
-2. **Check structure_pool** - is it empty for some biomes?
-3. **Explore more** - spawn zone (0-300 blocks) has no structures
+1. **Decrease spacing** - Lower spacing = more villages
+   ```json5
+   placement: {
+     "minecraft:villages": {
+       spacing: 20,   // Down from 34
+       separation: 6,
+     }
+   }
+   ```
+2. **Check biome_frequency** - is it too low?
+3. **Check structure_pool** - is it empty for some biomes?
+
+**Note:** It's often a good idea to reduce spacing, but **also** reduce frequency, example: 
+```json5
+{
+   biome_frequency: {
+      "*:*": 0.5, // reduces number of spawning villages
+   },
+   placement: {
+     "minecraft:villages": {
+       spacing: 20, // but puts them closer together
+       separation: 6, // while still keeping them apart
+       spreadType: "triangular", // and encouraging them away from each other
+     }
+   }
+}
+```
+
+### Villages Running Together / Overlapping
+
+Villages spawning too close and blending into each other? This is a **separation** issue, not spacing.
+
+1. **Increase separation** - Creates larger buffer zones between cells
+   ```json5
+   placement: {
+     "minecraft:villages": {
+       spacing: 34,
+       separation: 12,  // Up from 8
+     }
+   }
+   ```
+2. **Use center-biased spread** - Keeps villages away from cell edges
+   ```json5
+   placement: {
+     "minecraft:villages": {
+       spacing: 34,
+       separation: 8,
+       spreadType: "triangular",  // or "gaussian" for even tighter clustering
+     }
+   }
+   ```
+
+See [Spread Types](SpreadTypes.md) for visual diagrams.
 
 ## Config Not Loading
 
@@ -271,13 +303,13 @@ Village density is controlled by:
 
 ### Solutions
 
-#### 1. Restart Required
+#### 1. Reload the Config
 
-Config only loads at startup. `/reload` does NOT reload MVS config.
+Use `/mvs config reload` to reload the config without restarting. Note: vanilla `/reload` does NOT reload MVS config.
 
 #### 2. Check JSON5 Syntax
 
-Common errors:
+Validate your config at [json5.net](https://json5.net/). Common errors:
 
 ```json5
 // WRONG - missing quote
@@ -313,6 +345,8 @@ Config must be at:
 1. Delete `config/multivillageselector.json5`
 2. Restart Minecraft
 3. Run `/mvs generate` for fresh config
+4. Move from `local/mvs/multivillageselector.json5` to `config/multivillageselector.json5`
+5. Restart Minecraft
 
 ## Debug Mode
 
@@ -367,30 +401,26 @@ If you've tried everything:
 
 1. **Enable debug logging**
 2. **Create a new world**
-3. **Explore 1000+ blocks from spawn**
-4. **Save last 200 lines of logs:**
-   ```bash
-   tail -200 logs/latest.log > mvs-debug.txt
-   ```
-
+3. **Explore and generate some chunks**
+4. **Upload your log** to [mclo.gs](https://mclo.gs/) (don't paste logs directly in issues)
 5. **Open an issue:** [GitHub Issues](https://github.com/RhettL/multi-village-selector/issues)
 
 Include:
+- Link to your log on mclo.gs
 - Your config file
-- Debug log output
 - What you expected vs what happened
 - List of village mods installed
 - Platform (NeoForge or Fabric)
+- Screenshot if helpful 
 
 ### Pre-Issue Checklist
 
 - [ ] Debug logging enabled
 - [ ] Created NEW world (old chunks don't regenerate)
-- [ ] Explored beyond spawn zone (1000+ blocks)
-- [ ] CTOV village generation disabled (if using CTOV)
-- [ ] Better Village custom config disabled (if using Better Village)
+- [ ] Explored beyond spawn
 - [ ] Config syntax valid (no JSON errors in logs)
-- [ ] Minecraft restarted after config changes
+- [ ] Ran `/mvs config reload` or restarted Minecraft
+- [ ] Ran `/mvs info` to verify placement values
 - [ ] Correct Minecraft version (1.21.1)
 
 ---

@@ -41,7 +41,7 @@ This guide walks you through installing MVS and getting your first config workin
 1. Download from [Modrinth](https://modrinth.com/mod/multi-village-selector) or [GitHub Releases](https://github.com/RhettL/multi-village-selector/releases):
    - `multivillageselector-fabric-<version>.jar`
    - `architectury-api` (Fabric version)
-   - `fabric-api` (if not already installed)
+   - `fabric-api` (if not already installed)          
 
 2. Place all JARs in your `mods/` folder
 
@@ -51,7 +51,7 @@ This guide walks you through installing MVS and getting your first config workin
 2. **Create a new world** or load an existing one
 3. MVS creates a default config at `config/multivillageselector.json5`
 
-The default config is meant to be vanilla-like. But you can make a more useful one in-game.
+The default config behaves just like vanilla. Run `/mvs generate` to create a config tailored to your installed mods.
 
 ```json5
 {
@@ -63,15 +63,15 @@ The default config is meant to be vanilla-like. But you can make a more useful o
   // Structures MVS can spawn
   structure_pool: [
     { structure: "minecraft:village_plains",
-      biomes: { "#minecraft:has_structure/village_plains": 1 } },
+      biomes: { "#minecraft:has_structure/village_plains": 25 } },
     { structure: "minecraft:village_desert",
-      biomes: { "#minecraft:has_structure/village_desert": 1 } },
+      biomes: { "#minecraft:has_structure/village_desert": 25 } },
     { structure: "minecraft:village_savanna",
-      biomes: { "#minecraft:has_structure/village_savanna": 1 } },
+      biomes: { "#minecraft:has_structure/village_savanna": 25 } },
     { structure: "minecraft:village_taiga",
-      biomes: { "#minecraft:has_structure/village_taiga": 1 } },
+      biomes: { "#minecraft:has_structure/village_taiga": 25 } },
     { structure: "minecraft:village_snowy",
-      biomes: { "#minecraft:has_structure/village_snowy": 1 } },
+      biomes: { "#minecraft:has_structure/village_snowy": 25 } },
   ],
 }
 ```
@@ -98,6 +98,8 @@ In-game, the `/mvs generate` command scans all your installed mods and creates a
 
 5. **Restart Minecraft** to apply the new config
 
+6. **Verify it's working** - Run `/mvs info` to see your pool size and intercepted structure sets
+
 ### What `/mvs generate` Does
 
 - Scans all loaded mods for village structures
@@ -119,6 +121,8 @@ Now that MVS is working:
 1. **Customize weights** - See [Configuration Guide](Configuration.md) to adjust spawn rates
 2. **Control density** - See [Spacing Guide](SpacingGuide.md) to change how often villages spawn
 3. **Troubleshoot issues** - See [Troubleshooting](Troubleshooting.md) if something isn't working
+
+**Keep in mind:** Spacing, frequency, weight, and biomes **all** play a part in village selection and density.
 
 ## Common First-Time Issues
 

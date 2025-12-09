@@ -122,10 +122,21 @@ public class NearbyCommands {
                             ))
                         );
 
+                    // Create clickable structure ID (copy to clipboard)
+                    Component structureIdComponent = Component.literal(info.id)
+                        .withStyle(Style.EMPTY
+                            .withColor(ChatFormatting.AQUA)
+                            .withClickEvent(new ClickEvent(ClickEvent.Action.COPY_TO_CLIPBOARD, info.id))
+                            .withHoverEvent(new HoverEvent(
+                                HoverEvent.Action.SHOW_TEXT,
+                                Component.literal("Click to copy: " + info.id)
+                            ))
+                        );
+
                     // Build full message: "  123 blocks: structure_name [x, y, z]"
                     Component message = Component.literal("  " + info.distance + " blocks: ")
                         .withStyle(ChatFormatting.GRAY)
-                        .append(Component.literal(info.id).withStyle(ChatFormatting.AQUA))
+                        .append(structureIdComponent)
                         .append(Component.literal(" ").withStyle(ChatFormatting.GRAY))
                         .append(coordsComponent);
 

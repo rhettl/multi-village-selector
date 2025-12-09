@@ -37,12 +37,12 @@ Where each structure can spawn. Desert villages in deserts, snowy villages in sn
 ### Overall Frequency
 How often villages spawn at all in a biome. Reduce spawn rate in oceans, increase in plains.
 
+### Placement (v0.4.0+)
+Spacing, separation, salt, and spread type. Control how far apart villages spawn and their distribution pattern. See [Configuration](Configuration.md#placement) for details.
+
+**Note:** Placement settings only work with `RandomSpreadStructurePlacement` structures (villages, pillager outposts, etc.). Strongholds use a different placement system.
+
 ## What MVS Does NOT Control
-
-### Spacing and Separation
-Spacing, separation, salt, and spread type control was added in v0.4.0. See [Configuration](Configuration.md) for the `placement` section.
-
-**Note:** Placement settings only work with `RandomSpreadStructurePlacement` structures (villages, pillager outposts, etc.). Strongholds use a different placement system and cannot be controlled by MVS.
 
 ### Jigsaw Piece Replacement
 MVS intercepts **structure selection** (which village type spawns), not **jigsaw piece assembly** (which buildings appear inside villages).
@@ -78,6 +78,7 @@ Same config + same seed + same biomes = same results. No hidden RNG or "magic" b
 - `/mvs generate` scans your mods automatically
 - `/mvs biome` shows what spawns in current location
 - `/mvs structure` explains biome rules for any structure
+- `/mvs locate` finds where specific structures will spawn
 
 ## Current Limitations
 
@@ -96,10 +97,8 @@ MVS placement settings (spacing, separation, spread type) only work with `Random
 
 Features under consideration for future versions:
 
-- ~~**Spacing control** - Configure village grid spacing in MVS config~~ ✅ Added in v0.4.0
+- **Jigsaw piece blacklist** - Block specific pieces from appearing in villages
 - **Additional structure types** - Pillager outposts, ocean ruins
-- ~~**Modded biome inference** - Auto-detect desert-like modded biomes~~
-- ~~**Hot reload** - Apply config changes without restart~~
 
 These are possibilities, not promises. MVS will stay focused on its core mission: **bringing village variety to your world with full user control**.
 

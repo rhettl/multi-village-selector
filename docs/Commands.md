@@ -42,14 +42,15 @@ Commands for testing MVS pool selection.
 
 Commands related to structure information.
 
-| Command | Description |
-|---------|-------------|
-| `/mvs structure pool [full]` | List structures in MVS config pool |
-| `/mvs structure list [filter]` | Dump all game structures to file |
-| `/mvs structure biomes <id> [full]` | Show biome rules for structure |
-| `/mvs structure test <structure> <biome>` | Test if structure spawns in biome |
-| `/mvs structure nearby [radius]` | Find structures near player (default: 100 chunks) |
-| `/mvs structure set <id> [full]` | Inspect a structure set |
+| Command | Description                                                            |
+|---------|------------------------------------------------------------------------|
+| `/mvs structure pool [full]` | List structures in MVS config pool                                     |
+| `/mvs structure list [filter]` | Dump all game structures to file                                       |
+| `/mvs structure biomes <id> [full]` | Show biome rules for structure                                         |
+| `/mvs structure test <structure> <biome>` | Test if structure spawns in biome                                      |
+| `/mvs structure nearby [radius]` | Find structures near player (default: 100 chunks)                      |
+| `/mvs structure set <id> [full]` | Inspect a structure set                                                |
+| `/mvs structure predict [page]` | Predict which of the nearest 100 placement chunks will have structures |
 
 ---
 
@@ -143,6 +144,22 @@ Biomes with tag #minecraft:is_forest:
   minecraft:flower_forest
   minecraft:dark_forest
   minecraft:birch_forest
+  ...
+```
+
+### /mvs biome similar [biome]
+
+Find biomes that share tags with the current or specified biome. Useful for understanding which biomes might spawn similar structures.
+
+```
+/mvs biome similar minecraft:plains
+
+=== Biomes similar to minecraft:plains ===
+
+Shared tags with other biomes:
+  minecraft:meadow (3 shared tags)
+  minecraft:sunflower_plains (4 shared tags)
+  minecraft:savanna (2 shared tags)
   ...
 ```
 
@@ -346,6 +363,35 @@ Structures:
   ...
 ```
 
+### /mvs structure predict [page]
+
+*Added in v0.4.0*
+
+Predicts what structures would spawn at nearby placement chunks. Uses MVS placement algorithm to find valid chunks and shows which structure would be selected at each.
+
+```
+/mvs structure predict
+
+=== Chunk Predictions (Page 1/10) ===
+Placement: spacing=34, separation=8, salt=10387312
+
+#1 [160, 72, 320] village_plains (plains) 358m
+#2 [544, 68, -128] village_desert (desert) 559m
+#3 [-320, 70, 480] village_taiga (taiga) 577m
+...
+
+[< Prev]  [Next >]  [Export to File]
+```
+
+Each result is clickable for teleportation. Results are cached for 5 minutes or until you move 100+ blocks.
+
+**Subcommands:**
+- `/mvs structure predict <page>` - View a specific page
+- `/mvs structure predict file` - Export all predictions to file
+- `/mvs structure predict new` - Clear cache and regenerate predictions
+
+**Output (file):** `local/mvs/predictions-<timestamp>.txt`
+
 ---
 
 ## Quick Reference
@@ -366,6 +412,7 @@ Structures:
 /mvs biome tags
 /mvs biome tags minecraft:dark_forest
 /mvs biome by-tag #minecraft:is_forest
+/mvs biome similar
 
 # Test spawning
 /mvs test biome
@@ -378,6 +425,7 @@ Structures:
 /mvs structure test minecraft:village_desert minecraft:plains
 /mvs structure nearby 100
 /mvs structure set minecraft:villages
+/mvs structure predict
 
 # Config
 /mvs config reload
