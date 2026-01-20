@@ -7,6 +7,8 @@ import com.rhett.multivillageselector.config.MVSConfig;
 import dev.isxander.yacl3.api.*;
 import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
+import dev.isxander.yacl3.api.controller.DoubleSliderControllerBuilder;
+import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -494,26 +496,28 @@ public class MVSConfigScreen {
 
             for (Map.Entry<String, Double> entry : state.biomeFrequency.entrySet()) {
                 final String biomePattern = entry.getKey();
-                final double frequency = entry.getValue();
-                final int percentage = (int) (frequency * 100);
+                final double initialFrequency = entry.getValue();
 
-                groupBuilder.option(Option.<String>createBuilder()
+                groupBuilder.option(Option.<Double>createBuilder()
                     .name(Component.literal(biomePattern))
                     .description(OptionDescription.of(Component.literal(
-                        String.format("Spawn frequency: %.1f%% (%s)\n\n" +
+                        String.format("Spawn frequency multiplier\n\n" +
                             "%s\n\n" +
-                            "Edit JSON5 config to modify this value.",
-                            frequency * 100,
-                            frequency == 0.0 ? "disabled" :
-                            frequency < 0.5 ? "reduced" :
-                            frequency < 1.0 ? "slightly reduced" : "normal",
+                            "Values:\n" +
+                            "• 0.0 = Never spawn\n" +
+                            "• 0.5 = 50%% spawn rate\n" +
+                            "• 1.0 = Normal (100%%) spawn rate\n\n" +
+                            "Drag the slider to adjust the spawn frequency.",
                             getBiomePatternExplanation(biomePattern)))))
                     .binding(
-                        "",
-                        () -> String.format("%d%%", percentage),
-                        newValue -> {}
+                        initialFrequency,  // default
+                        () -> MVSConfig.biomeFrequency.getOrDefault(biomePattern, initialFrequency),  // getter
+                        newValue -> MVSConfigSaver.saveBiomeFrequency(biomePattern, newValue)  // setter
                     )
-                    .controller(opt -> StringControllerBuilder.create(opt))
+                    .controller(opt -> DoubleSliderControllerBuilder.create(opt)
+                        .range(0.0, 1.0)
+                        .step(0.05)
+                        .formatValue(val -> Component.literal(String.format("%.0f%%", val * 100))))
                     .build());
             }
 
@@ -582,35 +586,47 @@ public class MVSConfigScreen {
                         formatPlacementRuleDescription(rule))))
 
                     // Spacing option
-                    .option(Option.<String>createBuilder()
+                    .option(Option.<Integer>createBuilder()
                         .name(Component.literal("Spacing"))
                         .description(OptionDescription.of(Component.literal(
-                            "Grid cell size in chunks.\n" +
-                            (rule.spacing != null
-                                ? "Current: " + rule.spacing + " chunks"
-                                : "Using vanilla default"))))
+                            "Grid cell size in chunks.\n\n" +
+                            "Determines how far apart structure attempts are made.\n" +
+                            "Vanilla villages use 34 chunks.\n\n" +
+                            "Range: 1-256 chunks")))
                         .binding(
-                            "",
-                            () -> rule.spacing != null ? rule.spacing.toString() : "Default",
-                            newValue -> {}
+                            rule.spacing != null ? rule.spacing : 34,  // default to vanilla
+                            () -> rule.spacing != null ? rule.spacing : 34,
+                            newValue -> {
+                                MVSConfigSaver.savePlacementRuleField(structureSet, "spacing", String.valueOf(newValue));
+                                rule.spacing = newValue;
+                            }
                         )
-                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .controller(opt -> IntegerSliderControllerBuilder.create(opt)
+                            .range(1, 256)
+                            .step(1)
+                            .formatValue(val -> Component.literal(val + " chunks")))
                         .build())
 
                     // Separation option
-                    .option(Option.<String>createBuilder()
+                    .option(Option.<Integer>createBuilder()
                         .name(Component.literal("Separation"))
                         .description(OptionDescription.of(Component.literal(
-                            "Minimum distance between structures in chunks.\n" +
-                            (rule.separation != null
-                                ? "Current: " + rule.separation + " chunks"
-                                : "Using vanilla default"))))
+                            "Minimum distance between structures in chunks.\n\n" +
+                            "Must be less than spacing.\n" +
+                            "Vanilla villages use 8 chunks.\n\n" +
+                            "Range: 1-256 chunks")))
                         .binding(
-                            "",
-                            () -> rule.separation != null ? rule.separation.toString() : "Default",
-                            newValue -> {}
+                            rule.separation != null ? rule.separation : 8,  // default to vanilla
+                            () -> rule.separation != null ? rule.separation : 8,
+                            newValue -> {
+                                MVSConfigSaver.savePlacementRuleField(structureSet, "separation", String.valueOf(newValue));
+                                rule.separation = newValue;
+                            }
                         )
-                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .controller(opt -> IntegerSliderControllerBuilder.create(opt)
+                            .range(1, 256)
+                            .step(1)
+                            .formatValue(val -> Component.literal(val + " chunks")))
                         .build())
 
                     // Spread Type option

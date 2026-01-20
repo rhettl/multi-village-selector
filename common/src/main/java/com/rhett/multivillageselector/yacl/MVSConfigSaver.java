@@ -5,12 +5,16 @@ import com.rhett.multivillageselector.config.MVSConfig;
 
 import de.marhali.json5.Json5;
 import de.marhali.json5.Json5Object;
+import de.marhali.json5.Json5Element;
 import dev.architectury.platform.Platform;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Handles saving individual config fields back to the JSON5 file.
@@ -103,6 +107,87 @@ public class MVSConfigSaver {
             MVSCommon.LOGGER.info("MVS: Saved show_launch_message = {}", value);
         } catch (Exception e) {
             MVSCommon.LOGGER.error("MVS: Failed to save show launch message setting", e);
+        }
+    }
+
+    /**
+     * Updates a biome frequency value in the biome_frequency map.
+     *
+     * @param biomePattern The biome pattern key
+     * @param frequency The new frequency value (0.0 to 1.0)
+     */
+    public static void saveBiomeFrequency(String biomePattern, double frequency) {
+        try {
+            Path configPath = getConfigPath();
+            String content = Files.readString(configPath, StandardCharsets.UTF_8);
+
+            // Escape special regex characters in the biome pattern
+            String escapedPattern = Pattern.quote(biomePattern);
+
+            // Find and replace the biome frequency entry
+            // Pattern: "pattern": 0.5 (with various quote styles and spacing)
+            String regex = "([\"\']" + escapedPattern + "[\"\']\\s*:\\s*)[0-9]*\\.?[0-9]+";
+            String replacement = "$1" + frequency;
+
+            String updatedContent = content.replaceAll(regex, replacement);
+
+            // Write back
+            Files.writeString(configPath, updatedContent, StandardCharsets.UTF_8);
+
+            // Update in-memory config
+            MVSConfig.biomeFrequency.put(biomePattern, frequency);
+
+            MVSCommon.LOGGER.info("MVS: Saved biome frequency {} = {}", biomePattern, frequency);
+        } catch (Exception e) {
+            MVSCommon.LOGGER.error("MVS: Failed to save biome frequency", e);
+        }
+    }
+
+    /**
+     * Updates a placement rule field for a specific structure set.
+     *
+     * @param structureSet The structure set ID
+     * @param fieldName The field name (spacing, separation, etc.)
+     * @param value The new value
+     */
+    public static void savePlacementRuleField(String structureSet, String fieldName, String value) {
+        try {
+            Path configPath = getConfigPath();
+            String content = Files.readString(configPath, StandardCharsets.UTF_8);
+
+            // Find the placement section for this structure set
+            // This is complex - we need to find the structure set block and update the field within it
+            String escapedSet = Pattern.quote(structureSet);
+
+            // Pattern to match the field within the structure set's placement block
+            // "structureSet": { ... fieldName: oldValue ... }
+            String regex = "(\"" + escapedSet + "\"\\s*:\\s*\\{[^}]*" + fieldName + "\\s*:\\s*)([^,}]+)";
+            Pattern pattern = Pattern.compile(regex, Pattern.DOTALL);
+            Matcher matcher = pattern.matcher(content);
+
+            if (matcher.find()) {
+                String replacement = "$1" + value;
+                String updatedContent = matcher.replaceFirst(replacement);
+                Files.writeString(configPath, updatedContent, StandardCharsets.UTF_8);
+                MVSCommon.LOGGER.info("MVS: Saved placement rule {}.{} = {}", structureSet, fieldName, value);
+            } else {
+                MVSCommon.LOGGER.warn("MVS: Could not find placement rule {}.{}", structureSet, fieldName);
+            }
+        } catch (Exception e) {
+            MVSCommon.LOGGER.error("MVS: Failed to save placement rule", e);
+        }
+    }
+
+    /**
+     * Reloads the entire config from disk.
+     * Call this after making changes to ensure in-memory state is updated.
+     */
+    public static void reloadConfig() {
+        try {
+            MVSConfig.load();
+            MVSCommon.LOGGER.info("MVS: Config reloaded");
+        } catch (Exception e) {
+            MVSCommon.LOGGER.error("MVS: Failed to reload config", e);
         }
     }
 
