@@ -9,6 +9,7 @@ import dev.isxander.yacl3.api.controller.TickBoxControllerBuilder;
 import dev.isxander.yacl3.api.controller.StringControllerBuilder;
 import dev.isxander.yacl3.api.controller.DoubleSliderControllerBuilder;
 import dev.isxander.yacl3.api.controller.IntegerSliderControllerBuilder;
+import dev.isxander.yacl3.api.controller.EnumControllerBuilder;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
@@ -630,45 +631,45 @@ public class MVSConfigScreen {
                         .build())
 
                     // Spread Type option
-                    .option(Option.<String>createBuilder()
+                    .option(Option.<SpreadTypeOption>createBuilder()
                         .name(Component.literal("Spread Type"))
                         .description(OptionDescription.of(Component.literal(
                             "Distribution pattern within grid cell.\n\n" +
-                            "Options:\n" +
-                            "• linear - Uniform random\n" +
-                            "• triangular - Center-biased\n" +
-                            "• gaussian - Strongly center-biased\n" +
-                            "• edge_biased - Prefer cell edges\n" +
-                            "• corner_biased - Prefer cell corners\n" +
-                            "• fixed_center - Always at exact center\n\n" +
-                            (rule.spreadType != null
-                                ? "Current: " + rule.spreadType
-                                : "Using vanilla default (linear)"))))
+                            "Controls how structures are placed within each grid cell.\n" +
+                            "Select from dropdown to change the distribution pattern.")))
                         .binding(
-                            "",
-                            () -> rule.spreadType != null ? rule.spreadType : "Default (linear)",
-                            newValue -> {}
+                            SpreadTypeOption.LINEAR,  // default
+                            () -> SpreadTypeOption.fromConfigValue(rule.spreadType),  // getter
+                            newValue -> {  // setter
+                                String configValue = newValue.getConfigValue();
+                                MVSConfigSaver.savePlacementRuleField(structureSet, "spreadType", "\"" + configValue + "\"");
+                                rule.spreadType = configValue;
+                            }
                         )
-                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .controller(opt -> EnumControllerBuilder.create(opt)
+                            .enumClass(SpreadTypeOption.class)
+                            .formatValue(val -> Component.literal(val.toString())))
                         .build())
 
                     // Strategy option
-                    .option(Option.<String>createBuilder()
+                    .option(Option.<PlacementStrategy>createBuilder()
                         .name(Component.literal("Strategy"))
                         .description(OptionDescription.of(Component.literal(
                             "Placement strategy type.\n\n" +
-                            "Options:\n" +
-                            "• random_spread - Vanilla random placement\n" +
-                            "• concentric_rings - Stronghold-like rings\n\n" +
-                            (rule.strategy != null
-                                ? "Current: " + rule.strategy
-                                : "Using vanilla default (random_spread)"))))
+                            "Controls how structure locations are determined globally.\n" +
+                            "Select from dropdown to change the placement strategy.")))
                         .binding(
-                            "",
-                            () -> rule.strategy != null ? rule.strategy : "Default (random_spread)",
-                            newValue -> {}
+                            PlacementStrategy.RANDOM_SPREAD,  // default
+                            () -> PlacementStrategy.fromConfigValue(rule.strategy),  // getter
+                            newValue -> {  // setter
+                                String configValue = newValue.getConfigValue();
+                                MVSConfigSaver.savePlacementRuleField(structureSet, "strategy", "\"" + configValue + "\"");
+                                rule.strategy = configValue;
+                            }
                         )
-                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .controller(opt -> EnumControllerBuilder.create(opt)
+                            .enumClass(PlacementStrategy.class)
+                            .formatValue(val -> Component.literal(val.toString())))
                         .build())
 
                     // Exclusion Zone option (if present)
