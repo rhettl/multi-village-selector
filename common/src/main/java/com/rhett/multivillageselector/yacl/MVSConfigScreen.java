@@ -11,6 +11,8 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
+import java.util.Map;
+
 /**
  * YACL-based configuration screen for Multi Village Selector.
  * Uses a tabbed category layout that mirrors the JSON5 config structure.
@@ -254,173 +256,458 @@ public class MVSConfigScreen {
      * Structures Category: structure_pool, blacklist, intercepted_structure_sets
      */
     private static ConfigCategory buildStructuresCategory(ConfigState state) {
-        return ConfigCategory.createBuilder()
+        ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
             .name(Component.literal("Structures"))
-            .tooltip(Component.literal("Configure structure pools and selection"))
+            .tooltip(Component.literal("Configure structure pools and selection"));
 
-            // Group: Intercepted Structure Sets
-            .group(OptionGroup.createBuilder()
-                .name(Component.literal("Intercepted Structure Sets"))
+        // Group: Intercepted Structure Sets
+        categoryBuilder.group(OptionGroup.createBuilder()
+            .name(Component.literal("Intercepted Structure Sets"))
+            .description(OptionDescription.of(Component.literal(
+                "Structure sets that MVS takes control of.\n" +
+                "Usually: minecraft:villages")))
+
+            .option(Option.<String>createBuilder()
+                .name(Component.literal("Intercepted Sets"))
                 .description(OptionDescription.of(Component.literal(
-                    "Structure sets that MVS takes control of.\n" +
-                    "Usually: minecraft:villages")))
-
-                .option(Option.<String>createBuilder()
-                    .name(Component.literal("Intercepted Sets"))
-                    .description(OptionDescription.of(Component.literal(
-                        "Currently intercepting:\n" +
-                        String.join("\n", state.interceptStructureSets) + "\n\n" +
-                        "Edit the JSON5 config file to modify this list.")))
-                    .binding(
-                        "",
-                        () -> String.format("%d sets", state.interceptStructureSets.size()),
-                        newValue -> {}
-                    )
-                    .controller(opt -> StringControllerBuilder.create(opt))
-                    .build())
-
+                    "Currently intercepting:\n" +
+                    String.join("\n", state.interceptStructureSets) + "\n\n" +
+                    "Edit the JSON5 config file to modify this list.")))
+                .binding(
+                    "",
+                    () -> String.format("%d sets", state.interceptStructureSets.size()),
+                    newValue -> {}
+                )
+                .controller(opt -> StringControllerBuilder.create(opt))
                 .build())
 
-            // Group: Structure Pool
-            .group(OptionGroup.createBuilder()
+            .build());
+
+        // Group: Structure Pool - Show each entry
+        if (state.structurePoolRaw.isEmpty()) {
+            // Empty pool - show message
+            categoryBuilder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Structure Pool"))
                 .description(OptionDescription.of(Component.literal(
-                    "Array of structures that can be selected for spawning.\n" +
-                    "Each entry has: structure (id or pattern) + biomes (map of biome→weight)")))
+                    "No structures configured.\n" +
+                    "Run '/mvs generate' to auto-populate.")))
 
-                .option(Option.<String>createBuilder()
-                    .name(Component.literal("Pool Entries"))
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("📝 Edit in JSON5"))
                     .description(OptionDescription.of(Component.literal(
-                        "Structure pool defines which villages can spawn and where.\n\n" +
-                        "Each entry contains:\n" +
-                        "• structure: Structure ID or wildcard (e.g., 'ctov:*')\n" +
-                        "• biomes: Map of biome patterns to spawn weights\n\n" +
-                        "Supports wildcards (*) and tags (#minecraft:is_plains)\n\n" +
-                        "Dynamic list editor coming soon!\n" +
-                        "For now, edit the JSON5 file manually.")))
-                    .binding(
-                        "",
-                        () -> String.format("%d entries configured", state.structurePoolRaw.size()),
-                        newValue -> {}
-                    )
-                    .controller(opt -> StringControllerBuilder.create(opt))
+                        "The structure pool is empty.\n\n" +
+                        "To add structures:\n" +
+                        "1. Run '/mvs generate' in-game, or\n" +
+                        "2. Edit config/multivillageselector.json5 manually\n\n" +
+                        "Dynamic list editor coming in a future update!")))
+                    .action((screen, button) -> {})
                     .build())
 
-                .build())
+                .build());
+        } else {
+            // Show structure pool entries (limit to first 10 for performance)
+            int entriesToShow = Math.min(10, state.structurePoolRaw.size());
 
-            // Group: Blacklist
-            .group(OptionGroup.createBuilder()
-                .name(Component.literal("Blacklist"))
+            for (int i = 0; i < entriesToShow; i++) {
+                final int index = i;
+                MVSConfig.RawConfigEntry entry = state.structurePoolRaw.get(i);
+
+                String entryName = entry.isEmpty
+                    ? String.format("[%d] Empty Entry", i + 1)
+                    : String.format("[%d] %s", i + 1, entry.structure);
+
+                String entryDesc = entry.isEmpty
+                    ? "Weighted empty entry (allows 'no spawn' outcome)"
+                    : formatStructurePoolEntry(entry);
+
+                categoryBuilder.group(OptionGroup.createBuilder()
+                    .name(Component.literal(entryName))
+                    .collapsed(true)  // Collapsed by default to avoid clutter
+                    .description(OptionDescription.of(Component.literal(entryDesc)))
+
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Structure"))
+                        .description(OptionDescription.of(Component.literal(
+                            entry.isEmpty
+                                ? "This is an empty entry (no structure)"
+                                : "Structure: " + entry.structure + "\n\n" +
+                                  "Supports wildcards:\n" +
+                                  "• 'ctov:*' - All CTOV structures\n" +
+                                  "• 'minecraft:village_*' - All vanilla villages")))
+                        .binding(
+                            "",
+                            () -> entry.isEmpty ? "[Empty]" : entry.structure,
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Biomes"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Biome patterns and their spawn weights:\n\n" +
+                            formatBiomeMapDetailed(entry.biomes) + "\n\n" +
+                            "Edit JSON5 config to modify biome mappings.")))
+                        .binding(
+                            "",
+                            () -> String.format("%d biome rules", entry.biomes.size()),
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    .build());
+            }
+
+            // If there are more than 10 entries, show a message
+            if (state.structurePoolRaw.size() > 10) {
+                categoryBuilder.group(OptionGroup.createBuilder()
+                    .name(Component.literal("..."))
+                    .description(OptionDescription.of(Component.literal(
+                        String.format("+ %d more entries\n\n" +
+                            "Showing first 10 of %d total entries.\n" +
+                            "Edit JSON5 config to view/modify all entries.",
+                            state.structurePoolRaw.size() - 10,
+                            state.structurePoolRaw.size()))))
+
+                    .option(ButtonOption.createBuilder()
+                        .name(Component.literal("📝 View All in JSON5"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Too many entries to show in GUI.\n" +
+                            "Edit config/multivillageselector.json5 to see all entries.")))
+                        .action((screen, button) -> {})
+                        .build())
+
+                    .build());
+            }
+        }
+
+        // Group: Blacklist
+        categoryBuilder.group(OptionGroup.createBuilder()
+            .name(Component.literal("Blacklist"))
+            .description(OptionDescription.of(Component.literal(
+                "Array of structure IDs that will never spawn")))
+
+            .option(Option.<String>createBuilder()
+                .name(Component.literal("Blacklisted Structures"))
                 .description(OptionDescription.of(Component.literal(
-                    "Array of structure IDs that will never spawn")))
-
-                .option(Option.<String>createBuilder()
-                    .name(Component.literal("Blacklisted Structures"))
-                    .description(OptionDescription.of(Component.literal(
-                        "These structures are completely disabled:\n\n" +
-                        (state.blacklistedStructures.isEmpty()
-                            ? "None"
-                            : String.join("\n", state.blacklistedStructures)) + "\n\n" +
-                        "Edit the JSON5 config file to modify the blacklist.")))
-                    .binding(
-                        "",
-                        () -> state.blacklistedStructures.isEmpty()
-                            ? "None"
-                            : String.format("%d structures", state.blacklistedStructures.size()),
-                        newValue -> {}
-                    )
-                    .controller(opt -> StringControllerBuilder.create(opt))
-                    .build())
-
+                    "These structures are completely disabled:\n\n" +
+                    (state.blacklistedStructures.isEmpty()
+                        ? "None"
+                        : String.join("\n", state.blacklistedStructures)) + "\n\n" +
+                    "Edit the JSON5 config file to modify the blacklist.")))
+                .binding(
+                    "",
+                    () -> state.blacklistedStructures.isEmpty()
+                        ? "None"
+                        : String.format("%d structures", state.blacklistedStructures.size()),
+                    newValue -> {}
+                )
+                .controller(opt -> StringControllerBuilder.create(opt))
                 .build())
 
-            .build();
+            .build());
+
+        return categoryBuilder.build();
+    }
+
+    /**
+     * Helper: Format a structure pool entry for display
+     */
+    private static String formatStructurePoolEntry(MVSConfig.RawConfigEntry entry) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Structure: ").append(entry.structure).append("\n\n");
+        sb.append("Biomes (").append(entry.biomes.size()).append(" rules):\n");
+
+        int count = 0;
+        for (Map.Entry<String, Integer> biomeEntry : entry.biomes.entrySet()) {
+            if (count++ < 5) {
+                sb.append("• ").append(biomeEntry.getKey())
+                  .append(": weight ").append(biomeEntry.getValue()).append("\n");
+            }
+        }
+
+        if (entry.biomes.size() > 5) {
+            sb.append("... and ").append(entry.biomes.size() - 5).append(" more");
+        }
+
+        return sb.toString();
+    }
+
+    /**
+     * Helper: Format biome map in detail
+     */
+    private static String formatBiomeMapDetailed(Map<String, Integer> biomes) {
+        if (biomes.isEmpty()) {
+            return "No biome rules configured";
+        }
+
+        StringBuilder sb = new StringBuilder();
+        for (Map.Entry<String, Integer> entry : biomes.entrySet()) {
+            sb.append("• ").append(entry.getKey())
+              .append(" → weight: ").append(entry.getValue()).append("\n");
+        }
+
+        return sb.toString().trim();
     }
 
     /**
      * Biomes Category: biome_frequency map
      */
     private static ConfigCategory buildBiomesCategory(ConfigState state) {
-        return ConfigCategory.createBuilder()
+        ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
             .name(Component.literal("Biomes"))
-            .tooltip(Component.literal("Control spawn frequency per biome"))
+            .tooltip(Component.literal("Control spawn frequency per biome"));
 
-            // Group: Biome Frequency Map
-            .group(OptionGroup.createBuilder()
+        if (state.biomeFrequency.isEmpty()) {
+            // No frequency rules - show default behavior
+            categoryBuilder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Biome Frequency"))
                 .description(OptionDescription.of(Component.literal(
-                    "Map of biome patterns to frequency multipliers.\n" +
-                    "Values: 0.0 (never spawn) to 1.0 (normal frequency)\n\n" +
-                    "Examples:\n" +
-                    "\"#minecraft:is_ocean\": 0.3 → 30% spawn rate in oceans\n" +
-                    "\"minecraft:desert\": 0.8 → 80% spawn rate in desert")))
+                    "No custom frequency rules configured.\n\n" +
+                    "All biomes use 100% spawn rate (normal frequency).\n\n" +
+                    "You can add frequency multipliers to reduce spawn rates\n" +
+                    "in specific biomes. Values: 0.0 (never) to 1.0 (normal).")))
 
-                .option(Option.<String>createBuilder()
-                    .name(Component.literal("Configured Biomes"))
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("📝 Add Rules in JSON5"))
                     .description(OptionDescription.of(Component.literal(
-                        "Biomes with custom spawn frequencies:\n\n" +
-                        (state.biomeFrequency.isEmpty()
-                            ? "None configured (all biomes use 100%)"
-                            : formatBiomeFrequencyMap(state)) + "\n\n" +
-                        "Map editor coming soon!\n" +
-                        "Edit JSON5 config to modify biome frequencies.")))
+                        "To add biome frequency rules:\n\n" +
+                        "Edit config/multivillageselector.json5\n" +
+                        "Add to biome_frequency section:\n\n" +
+                        "\"#minecraft:is_ocean\": 0.3  → 30% in oceans\n" +
+                        "\"minecraft:desert\": 0.8      → 80% in desert\n\n" +
+                        "Map editor coming in a future update!")))
+                    .action((screen, button) -> {})
+                    .build())
+
+                .build());
+        } else {
+            // Show each biome frequency rule
+            OptionGroup.Builder groupBuilder = OptionGroup.createBuilder()
+                .name(Component.literal("Biome Frequency Rules"))
+                .description(OptionDescription.of(Component.literal(
+                    String.format("%d biome rules configured\n\n" +
+                        "Values: 0.0 (never spawn) to 1.0 (normal frequency)\n" +
+                        "Biomes not listed use 100%% spawn rate.",
+                        state.biomeFrequency.size()))));
+
+            for (Map.Entry<String, Double> entry : state.biomeFrequency.entrySet()) {
+                final String biomePattern = entry.getKey();
+                final double frequency = entry.getValue();
+                final int percentage = (int) (frequency * 100);
+
+                groupBuilder.option(Option.<String>createBuilder()
+                    .name(Component.literal(biomePattern))
+                    .description(OptionDescription.of(Component.literal(
+                        String.format("Spawn frequency: %.1f%% (%s)\n\n" +
+                            "%s\n\n" +
+                            "Edit JSON5 config to modify this value.",
+                            frequency * 100,
+                            frequency == 0.0 ? "disabled" :
+                            frequency < 0.5 ? "reduced" :
+                            frequency < 1.0 ? "slightly reduced" : "normal",
+                            getBiomePatternExplanation(biomePattern)))))
                     .binding(
                         "",
-                        () -> state.biomeFrequency.isEmpty()
-                            ? "None (100% everywhere)"
-                            : String.format("%d rules", state.biomeFrequency.size()),
+                        () -> String.format("%d%%", percentage),
                         newValue -> {}
                     )
                     .controller(opt -> StringControllerBuilder.create(opt))
-                    .build())
+                    .build());
+            }
 
-                .build())
+            categoryBuilder.group(groupBuilder.build());
+        }
 
-            .build();
+        return categoryBuilder.build();
+    }
+
+    /**
+     * Helper: Explain what a biome pattern matches
+     */
+    private static String getBiomePatternExplanation(String pattern) {
+        if (pattern.startsWith("#")) {
+            return "Tag pattern - matches all biomes in tag: " + pattern;
+        } else if (pattern.contains("*")) {
+            return "Wildcard pattern - matches multiple biomes: " + pattern;
+        } else {
+            return "Direct biome ID: " + pattern;
+        }
     }
 
     /**
      * Placement Category: placement map (per-structure-set rules)
      */
     private static ConfigCategory buildPlacementCategory(ConfigState state) {
-        return ConfigCategory.createBuilder()
+        ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
             .name(Component.literal("Placement"))
-            .tooltip(Component.literal("Configure structure spacing and distribution"))
+            .tooltip(Component.literal("Configure structure spacing and distribution"));
 
-            // Group: Per-Structure-Set Placement Rules
-            .group(OptionGroup.createBuilder()
+        if (state.placement.isEmpty()) {
+            // No custom placement rules - using vanilla defaults
+            categoryBuilder.group(OptionGroup.createBuilder()
                 .name(Component.literal("Placement Rules"))
                 .description(OptionDescription.of(Component.literal(
-                    "Map of structure set IDs to placement configuration.\n\n" +
-                    "Each entry can configure:\n" +
+                    "No custom placement rules configured.\n\n" +
+                    "Using vanilla defaults for all structure sets.\n\n" +
+                    "You can configure:\n" +
                     "• spacing - Grid cell size in chunks\n" +
-                    "• separation - Minimum distance between structures\n" +
-                    "• spreadType - Distribution pattern (enum)\n" +
-                    "• strategy - Placement strategy (enum)\n" +
+                    "• separation - Min distance between structures\n" +
+                    "• spreadType - Distribution pattern\n" +
+                    "• strategy - Placement strategy\n" +
                     "• exclusion_zone - Avoid other structure sets")))
 
-                .option(Option.<String>createBuilder()
-                    .name(Component.literal("Configured Structure Sets"))
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("📝 Add Rules in JSON5"))
                     .description(OptionDescription.of(Component.literal(
-                        "Per-structure-set placement configuration:\n\n" +
-                        (state.placement.isEmpty()
-                            ? "None (using vanilla defaults)"
-                            : formatPlacementMap(state)) + "\n\n" +
-                        "Nested object editor coming soon!\n" +
-                        "Edit JSON5 config to modify placement rules.")))
-                    .binding(
-                        "",
-                        () -> state.placement.isEmpty()
-                            ? "Using vanilla defaults"
-                            : String.format("%d sets configured", state.placement.size()),
-                        newValue -> {}
-                    )
-                    .controller(opt -> StringControllerBuilder.create(opt))
+                        "To configure placement rules:\n\n" +
+                        "Edit config/multivillageselector.json5\n" +
+                        "Add to placement section.\n\n" +
+                        "Object editor coming in a future update!")))
+                    .action((screen, button) -> {})
                     .build())
 
-                .build())
+                .build());
+        } else {
+            // Show each structure set's placement rules
+            for (Map.Entry<String, com.rhett.multivillageselector.config.PlacementRule> entry : state.placement.entrySet()) {
+                final String structureSet = entry.getKey();
+                final com.rhett.multivillageselector.config.PlacementRule rule = entry.getValue();
 
-            .build();
+                categoryBuilder.group(OptionGroup.createBuilder()
+                    .name(Component.literal(structureSet))
+                    .collapsed(true)
+                    .description(OptionDescription.of(Component.literal(
+                        formatPlacementRuleDescription(rule))))
+
+                    // Spacing option
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Spacing"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Grid cell size in chunks.\n" +
+                            (rule.spacing != null
+                                ? "Current: " + rule.spacing + " chunks"
+                                : "Using vanilla default"))))
+                        .binding(
+                            "",
+                            () -> rule.spacing != null ? rule.spacing.toString() : "Default",
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    // Separation option
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Separation"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Minimum distance between structures in chunks.\n" +
+                            (rule.separation != null
+                                ? "Current: " + rule.separation + " chunks"
+                                : "Using vanilla default"))))
+                        .binding(
+                            "",
+                            () -> rule.separation != null ? rule.separation.toString() : "Default",
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    // Spread Type option
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Spread Type"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Distribution pattern within grid cell.\n\n" +
+                            "Options:\n" +
+                            "• linear - Uniform random\n" +
+                            "• triangular - Center-biased\n" +
+                            "• gaussian - Strongly center-biased\n" +
+                            "• edge_biased - Prefer cell edges\n" +
+                            "• corner_biased - Prefer cell corners\n" +
+                            "• fixed_center - Always at exact center\n\n" +
+                            (rule.spreadType != null
+                                ? "Current: " + rule.spreadType
+                                : "Using vanilla default (linear)"))))
+                        .binding(
+                            "",
+                            () -> rule.spreadType != null ? rule.spreadType : "Default (linear)",
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    // Strategy option
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Strategy"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Placement strategy type.\n\n" +
+                            "Options:\n" +
+                            "• random_spread - Vanilla random placement\n" +
+                            "• concentric_rings - Stronghold-like rings\n\n" +
+                            (rule.strategy != null
+                                ? "Current: " + rule.strategy
+                                : "Using vanilla default (random_spread)"))))
+                        .binding(
+                            "",
+                            () -> rule.strategy != null ? rule.strategy : "Default (random_spread)",
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    // Exclusion Zone option (if present)
+                    .option(Option.<String>createBuilder()
+                        .name(Component.literal("Exclusion Zone"))
+                        .description(OptionDescription.of(Component.literal(
+                            rule.exclusionZone != null
+                                ? "Avoid spawning near:\n" +
+                                  "• Structure set: " + rule.exclusionZone.otherSet + "\n" +
+                                  "• Distance: " + rule.exclusionZone.chunkCount + " chunks"
+                                : "No exclusion zone configured.\n\n" +
+                                  "Exclusion zones prevent this structure from spawning\n" +
+                                  "too close to another structure set.")))
+                        .binding(
+                            "",
+                            () -> rule.exclusionZone != null
+                                ? "Avoid " + rule.exclusionZone.otherSet
+                                : "None",
+                            newValue -> {}
+                        )
+                        .controller(opt -> StringControllerBuilder.create(opt))
+                        .build())
+
+                    .build());
+            }
+        }
+
+        return categoryBuilder.build();
+    }
+
+    /**
+     * Helper: Format placement rule description
+     */
+    private static String formatPlacementRuleDescription(com.rhett.multivillageselector.config.PlacementRule rule) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("Custom placement configuration:\n\n");
+
+        if (rule.spacing != null) {
+            sb.append("Spacing: ").append(rule.spacing).append(" chunks\n");
+        }
+        if (rule.separation != null) {
+            sb.append("Separation: ").append(rule.separation).append(" chunks\n");
+        }
+        if (rule.spreadType != null) {
+            sb.append("Spread: ").append(rule.spreadType).append("\n");
+        }
+        if (rule.strategy != null) {
+            sb.append("Strategy: ").append(rule.strategy).append("\n");
+        }
+        if (rule.exclusionZone != null) {
+            sb.append("Exclusion: Avoid ").append(rule.exclusionZone.otherSet)
+              .append(" (").append(rule.exclusionZone.chunkCount).append(" chunks)");
+        }
+
+        return sb.toString();
     }
 
     /**
