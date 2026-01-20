@@ -24,6 +24,9 @@ dependencies {
     // JSON5 parser
     implementation "de.marhali:json5-java:3.0.0"
 
+    // Optional config GUI (use Fabric artifact for Architectury common)
+    modCompileOnly "dev.isxander:yet-another-config-lib-fabric:${rootProject.yacl_version}"
+
     // JUnit 5 for testing
     testImplementation "org.junit.jupiter:junit-jupiter-api:5.10.0"
     testRuntimeOnly "org.junit.jupiter:junit-jupiter-engine:5.10.0"

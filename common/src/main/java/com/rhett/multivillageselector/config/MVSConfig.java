@@ -496,4 +496,28 @@ public class MVSConfig {
         return selected;
     }
 
+    /**
+     * Gets the current configuration state as an immutable ConfigState object.
+     * Used by the YACL GUI to read current configuration values.
+     *
+     * @return Current configuration state
+     */
+    public static ConfigState getCurrentState() {
+        return new ConfigState(
+            enabled,
+            debugLogging,
+            debugCmd,
+            showLaunchMessage,
+            blockStructureSets,
+            interceptStructureSets,
+            structurePoolRaw,
+            structurePool,
+            blacklistedStructures,
+            biomeFrequency,
+            relaxedBiomeValidation,
+            placement,
+            List.of() // No validation warnings for current state
+        );
+    }
+
 }
