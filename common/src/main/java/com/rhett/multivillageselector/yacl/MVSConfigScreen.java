@@ -201,57 +201,6 @@ public class MVSConfigScreen {
 
                 .build())
 
-            // Group: Debug Options
-            .group(OptionGroup.createBuilder()
-                .name(Component.literal("Debug Options"))
-                .description(OptionDescription.of(Component.literal(
-                    "Advanced options for debugging and troubleshooting")))
-
-                .option(Option.<Boolean>createBuilder()
-                    .name(Component.literal("Debug Logging"))
-                    .description(OptionDescription.of(Component.literal(
-                        "Enable verbose logging for structure selection.\n\n" +
-                        "Shows detailed information about:\n" +
-                        "• Biome pattern matching\n" +
-                        "• Weight calculations\n" +
-                        "• Structure picks\n\n" +
-                        "⚠️ Warning: May spam logs during world generation!")))
-                    .binding(
-                        false,
-                        () -> state.debugLogging,
-                        newValue -> MVSConfigSaver.saveDebugLogging(newValue)
-                    )
-                    .controller(TickBoxControllerBuilder::create)
-                    .build())
-
-                .option(Option.<Boolean>createBuilder()
-                    .name(Component.literal("Debug Commands"))
-                    .description(OptionDescription.of(Component.literal(
-                        "Enable advanced debug commands like /mvs debug.\n" +
-                        "For advanced users and developers only.")))
-                    .binding(
-                        false,
-                        () -> state.debugCmd,
-                        newValue -> MVSConfigSaver.saveDebugCmd(newValue)
-                    )
-                    .controller(TickBoxControllerBuilder::create)
-                    .build())
-
-                .option(Option.<Boolean>createBuilder()
-                    .name(Component.literal("Show Launch Message"))
-                    .description(OptionDescription.of(Component.literal(
-                        "Display a welcome message in chat when joining a world.\n" +
-                        "Confirms that MVS is active and loaded.")))
-                    .binding(
-                        false,
-                        () -> state.showLaunchMessage,
-                        newValue -> MVSConfigSaver.saveShowLaunchMessage(newValue)
-                    )
-                    .controller(TickBoxControllerBuilder::create)
-                    .build())
-
-                .build())
-
             .build();
     }
 
@@ -791,6 +740,58 @@ public class MVSConfigScreen {
                         "Special thanks to the Minecraft modding community!")))
                     .binding("", () -> "See description", v -> {})
                     .controller(opt -> StringControllerBuilder.create(opt))
+                    .build())
+
+                .build())
+
+            // Group: Debug Options (collapsed by default)
+            .group(OptionGroup.createBuilder()
+                .name(Component.literal("Debug Options"))
+                .description(OptionDescription.of(Component.literal(
+                    "Advanced options for debugging and troubleshooting")))
+                .collapsed(true)  // Default to collapsed
+
+                .option(Option.<Boolean>createBuilder()
+                    .name(Component.literal("Debug Logging"))
+                    .description(OptionDescription.of(Component.literal(
+                        "Enable verbose logging for structure selection.\n\n" +
+                        "Shows detailed information about:\n" +
+                        "• Biome pattern matching\n" +
+                        "• Weight calculations\n" +
+                        "• Structure picks\n\n" +
+                        "⚠️ Warning: May spam logs during world generation!")))
+                    .binding(
+                        false,
+                        () -> state.debugLogging,
+                        newValue -> MVSConfigSaver.saveDebugLogging(newValue)
+                    )
+                    .controller(TickBoxControllerBuilder::create)
+                    .build())
+
+                .option(Option.<Boolean>createBuilder()
+                    .name(Component.literal("Debug Commands"))
+                    .description(OptionDescription.of(Component.literal(
+                        "Enable advanced debug commands like /mvs debug.\n" +
+                        "For advanced users and developers only.")))
+                    .binding(
+                        false,
+                        () -> state.debugCmd,
+                        newValue -> MVSConfigSaver.saveDebugCmd(newValue)
+                    )
+                    .controller(TickBoxControllerBuilder::create)
+                    .build())
+
+                .option(Option.<Boolean>createBuilder()
+                    .name(Component.literal("Show Launch Message"))
+                    .description(OptionDescription.of(Component.literal(
+                        "Display a welcome message in chat when joining a world.\n" +
+                        "Confirms that MVS is active and loaded.")))
+                    .binding(
+                        false,
+                        () -> state.showLaunchMessage,
+                        newValue -> MVSConfigSaver.saveShowLaunchMessage(newValue)
+                    )
+                    .controller(TickBoxControllerBuilder::create)
                     .build())
 
                 .build())
