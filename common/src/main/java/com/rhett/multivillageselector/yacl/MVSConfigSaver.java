@@ -169,6 +169,10 @@ public class MVSConfigSaver {
                 String replacement = "$1" + value;
                 String updatedContent = matcher.replaceFirst(replacement);
                 Files.writeString(configPath, updatedContent, StandardCharsets.UTF_8);
+
+                // Reload config to update in-memory state
+                MVSConfig.load();
+
                 MVSCommon.LOGGER.info("MVS: Saved placement rule {}.{} = {}", structureSet, fieldName, value);
             } else {
                 MVSCommon.LOGGER.warn("MVS: Could not find placement rule {}.{}", structureSet, fieldName);

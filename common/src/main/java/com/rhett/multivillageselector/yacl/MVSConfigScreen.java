@@ -97,7 +97,7 @@ public class MVSConfigScreen {
                             "You can generate config later using '/mvs generate' command.")))
                         .action((screen, button) -> {
                             // Disable welcome message and reload screen
-                            MVSConfigSaver.saveShowWelcomeMessage(false);
+                            MVSConfigSaver.saveShowLaunchMessage(false);
                             MVSCommon.LOGGER.info("MVS: Welcome screen skipped");
                             Minecraft.getInstance().setScreen(
                                 createMainConfigScreen(parent, MVSConfig.getCurrentState())
@@ -596,11 +596,14 @@ public class MVSConfigScreen {
                             "Range: 1-256 chunks")))
                         .binding(
                             rule.spacing != null ? rule.spacing : 34,  // default to vanilla
-                            () -> rule.spacing != null ? rule.spacing : 34,
-                            newValue -> {
-                                MVSConfigSaver.savePlacementRuleField(structureSet, "spacing", String.valueOf(newValue));
-                                rule.spacing = newValue;
-                            }
+                            () -> {
+                                // Re-read from config to get updated value
+                                com.rhett.multivillageselector.config.PlacementRule currentRule =
+                                    MVSConfig.placement.get(structureSet);
+                                return currentRule != null && currentRule.spacing != null
+                                    ? currentRule.spacing : 34;
+                            },
+                            newValue -> MVSConfigSaver.savePlacementRuleField(structureSet, "spacing", String.valueOf(newValue))
                         )
                         .controller(opt -> IntegerSliderControllerBuilder.create(opt)
                             .range(1, 256)
@@ -618,11 +621,14 @@ public class MVSConfigScreen {
                             "Range: 1-256 chunks")))
                         .binding(
                             rule.separation != null ? rule.separation : 8,  // default to vanilla
-                            () -> rule.separation != null ? rule.separation : 8,
-                            newValue -> {
-                                MVSConfigSaver.savePlacementRuleField(structureSet, "separation", String.valueOf(newValue));
-                                rule.separation = newValue;
-                            }
+                            () -> {
+                                // Re-read from config to get updated value
+                                com.rhett.multivillageselector.config.PlacementRule currentRule =
+                                    MVSConfig.placement.get(structureSet);
+                                return currentRule != null && currentRule.separation != null
+                                    ? currentRule.separation : 8;
+                            },
+                            newValue -> MVSConfigSaver.savePlacementRuleField(structureSet, "separation", String.valueOf(newValue))
                         )
                         .controller(opt -> IntegerSliderControllerBuilder.create(opt)
                             .range(1, 256)
@@ -639,11 +645,16 @@ public class MVSConfigScreen {
                             "Select from dropdown to change the distribution pattern.")))
                         .binding(
                             SpreadTypeOption.LINEAR,  // default
-                            () -> SpreadTypeOption.fromConfigValue(rule.spreadType),  // getter
+                            () -> {
+                                // Re-read from config to get updated value
+                                com.rhett.multivillageselector.config.PlacementRule currentRule =
+                                    MVSConfig.placement.get(structureSet);
+                                return SpreadTypeOption.fromConfigValue(
+                                    currentRule != null ? currentRule.spreadType : null);
+                            },
                             newValue -> {  // setter
                                 String configValue = newValue.getConfigValue();
                                 MVSConfigSaver.savePlacementRuleField(structureSet, "spreadType", "\"" + configValue + "\"");
-                                rule.spreadType = configValue;
                             }
                         )
                         .controller(opt -> EnumControllerBuilder.create(opt)
@@ -660,11 +671,16 @@ public class MVSConfigScreen {
                             "Select from dropdown to change the placement strategy.")))
                         .binding(
                             PlacementStrategy.RANDOM_SPREAD,  // default
-                            () -> PlacementStrategy.fromConfigValue(rule.strategy),  // getter
+                            () -> {
+                                // Re-read from config to get updated value
+                                com.rhett.multivillageselector.config.PlacementRule currentRule =
+                                    MVSConfig.placement.get(structureSet);
+                                return PlacementStrategy.fromConfigValue(
+                                    currentRule != null ? currentRule.strategy : null);
+                            },
                             newValue -> {  // setter
                                 String configValue = newValue.getConfigValue();
                                 MVSConfigSaver.savePlacementRuleField(structureSet, "strategy", "\"" + configValue + "\"");
-                                rule.strategy = configValue;
                             }
                         )
                         .controller(opt -> EnumControllerBuilder.create(opt)
