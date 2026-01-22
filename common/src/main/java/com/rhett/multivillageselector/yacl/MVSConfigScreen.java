@@ -130,7 +130,7 @@ public class MVSConfigScreen {
             // ========================================
             // Category: Structures
             // ========================================
-            .category(buildStructuresCategory(state))
+            .category(buildStructuresCategory(state, parent))
 
             // ========================================
             // Category: Biomes
@@ -227,9 +227,264 @@ public class MVSConfigScreen {
     }
 
     /**
-     * Structures Category: structure_pool, blacklist, intercepted_structure_sets
+     * Structures Category: Navigation to sub-screens
      */
-    private static ConfigCategory buildStructuresCategory(ConfigState state) {
+    private static ConfigCategory buildStructuresCategory(ConfigState state, Screen parent) {
+        return ConfigCategory.createBuilder()
+            .name(Component.literal("Structures"))
+            .tooltip(Component.literal("Configure structure pools and selection"))
+
+            .group(OptionGroup.createBuilder()
+                .name(Component.literal("Structure Configuration"))
+                .description(OptionDescription.of(Component.literal(
+                    "Manage structure sets, pools, and blacklists")))
+
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("Intercept Structure Sets"))
+                    .description(OptionDescription.of(Component.literal(
+                        String.format("Structure sets that MVS controls (%d configured)\n\n" +
+                            "Click to add, remove, or edit intercepted sets.",
+                            state.interceptStructureSets.size()))))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createInterceptSetsScreen(screen)
+                        );
+                    })
+                    .build())
+
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("Blacklisted Structures"))
+                    .description(OptionDescription.of(Component.literal(
+                        String.format("Structures that will never spawn (%d configured)\n\n" +
+                            "Click to add, remove, or edit blacklisted structures.",
+                            state.blacklistedStructures.size()))))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createBlacklistScreen(screen)
+                        );
+                    })
+                    .build())
+
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("Structures"))
+                    .description(OptionDescription.of(Component.literal(
+                        String.format("Structure pool with biome mappings (%d configured)\n\n" +
+                            "Click to add, remove, or edit structure pool entries.",
+                            state.structurePoolRaw.size()))))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createStructurePoolScreen(screen)
+                        );
+                    })
+                    .build())
+
+                .build())
+
+            .build();
+    }
+
+    /**
+     * Sub-screen: Intercept Structure Sets
+     * Allows adding/removing structure set IDs
+     */
+    private static Screen createInterceptSetsScreen(Screen parent) {
+        ConfigState state = MVSConfig.getCurrentState();
+
+        ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
+            .name(Component.literal("Intercept Structure Sets"))
+            .tooltip(Component.literal("Manage which structure sets MVS controls"));
+
+        // Add a back button group at the top
+        categoryBuilder.group(OptionGroup.createBuilder()
+            .name(Component.literal("Navigation"))
+
+            .option(ButtonOption.createBuilder()
+                .name(Component.literal("← Back"))
+                .description(OptionDescription.of(Component.literal(
+                    "Return to main config screen")))
+                .action((screen, button) -> {
+                    Minecraft.getInstance().setScreen(parent);
+                })
+                .build())
+
+            .build());
+
+        // Group: Current Sets
+        OptionGroup.Builder setsGroupBuilder = OptionGroup.createBuilder()
+            .name(Component.literal("Configured Sets"))
+            .description(OptionDescription.of(Component.literal(
+                "Structure sets that MVS intercepts and replaces.\n" +
+                "Common values: minecraft:villages, minecraft:village")));
+
+        if (state.interceptStructureSets.isEmpty()) {
+            setsGroupBuilder.option(Option.<String>createBuilder()
+                .name(Component.literal("No sets configured"))
+                .description(OptionDescription.of(Component.literal(
+                    "Click 'Add Set' below to add a structure set ID")))
+                .binding("", () -> "Empty", v -> {})
+                .controller(opt -> StringControllerBuilder.create(opt))
+                .build());
+        } else {
+            // Show each intercept set with a remove button
+            for (String setId : state.interceptStructureSets) {
+                final String setIdFinal = setId;
+                setsGroupBuilder.option(ButtonOption.createBuilder()
+                    .name(Component.literal("✗ " + setId))
+                    .description(OptionDescription.of(Component.literal(
+                        "Click to remove this structure set from interception")))
+                    .action((screen, button) -> {
+                        // TODO: Implement remove functionality
+                        MVSCommon.LOGGER.info("MVS: Would remove intercept set: {}", setIdFinal);
+                    })
+                    .build());
+            }
+        }
+
+        categoryBuilder.group(setsGroupBuilder.build());
+
+        // Group: Actions
+        categoryBuilder.group(OptionGroup.createBuilder()
+            .name(Component.literal("Actions"))
+
+            .option(ButtonOption.createBuilder()
+                .name(Component.literal("+ Add Set"))
+                .description(OptionDescription.of(Component.literal(
+                    "Add a new structure set to intercept.\n\n" +
+                    "Note: Text input dialog coming soon.\n" +
+                    "For now, edit the JSON5 config file directly.")))
+                .action((screen, button) -> {
+                    // TODO: Show text input dialog
+                    Minecraft.getInstance().setScreen(
+                        createMessageScreen(screen,
+                            "Text input not yet implemented.\n\n" +
+                            "Please edit config/multivillageselector.json5 directly:\n\n" +
+                            "\"intercept_structure_sets\": [\n" +
+                            "  \"minecraft:villages\"\n" +
+                            "]")
+                    );
+                })
+                .build())
+
+            .build());
+
+        return YetAnotherConfigLib.createBuilder()
+            .title(Component.literal("Intercept Structure Sets"))
+            .category(categoryBuilder.build())
+            .save(() -> {})
+            .build()
+            .generateScreen(parent);
+    }
+
+    /**
+     * Sub-screen: Blacklisted Structures
+     * Allows adding/removing blacklisted structure IDs
+     */
+    private static Screen createBlacklistScreen(Screen parent) {
+        ConfigState state = MVSConfig.getCurrentState();
+
+        ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
+            .name(Component.literal("Blacklisted Structures"))
+            .tooltip(Component.literal("Manage structures that will never spawn"));
+
+        // Add a back button group at the top
+        categoryBuilder.group(OptionGroup.createBuilder()
+            .name(Component.literal("Navigation"))
+
+            .option(ButtonOption.createBuilder()
+                .name(Component.literal("← Back"))
+                .description(OptionDescription.of(Component.literal(
+                    "Return to main config screen")))
+                .action((screen, button) -> {
+                    Minecraft.getInstance().setScreen(parent);
+                })
+                .build())
+
+            .build());
+
+        // Group: Current Blacklist
+        OptionGroup.Builder blacklistGroupBuilder = OptionGroup.createBuilder()
+            .name(Component.literal("Blacklisted Structures"))
+            .description(OptionDescription.of(Component.literal(
+                "Structures that are completely disabled.\n" +
+                "These will never spawn, even if selected by the picker.")));
+
+        if (state.blacklistedStructures.isEmpty()) {
+            blacklistGroupBuilder.option(Option.<String>createBuilder()
+                .name(Component.literal("No structures blacklisted"))
+                .description(OptionDescription.of(Component.literal(
+                    "Click 'Add Structure' below to blacklist a structure")))
+                .binding("", () -> "Empty", v -> {})
+                .controller(opt -> StringControllerBuilder.create(opt))
+                .build());
+        } else {
+            // Show each blacklisted structure with a remove button
+            for (String structureId : state.blacklistedStructures) {
+                final String structureIdFinal = structureId;
+                blacklistGroupBuilder.option(ButtonOption.createBuilder()
+                    .name(Component.literal("✗ " + structureId))
+                    .description(OptionDescription.of(Component.literal(
+                        "Click to remove from blacklist (allow spawning)")))
+                    .action((screen, button) -> {
+                        // TODO: Implement remove functionality
+                        MVSCommon.LOGGER.info("MVS: Would remove from blacklist: {}", structureIdFinal);
+                    })
+                    .build());
+            }
+        }
+
+        categoryBuilder.group(blacklistGroupBuilder.build());
+
+        // Group: Actions
+        categoryBuilder.group(OptionGroup.createBuilder()
+            .name(Component.literal("Actions"))
+
+            .option(ButtonOption.createBuilder()
+                .name(Component.literal("+ Add Structure"))
+                .description(OptionDescription.of(Component.literal(
+                    "Add a structure to the blacklist.\n\n" +
+                    "Note: Text input dialog coming soon.\n" +
+                    "For now, edit the JSON5 config file directly.")))
+                .action((screen, button) -> {
+                    // TODO: Show text input dialog
+                    Minecraft.getInstance().setScreen(
+                        createMessageScreen(screen,
+                            "Text input not yet implemented.\n\n" +
+                            "Please edit config/multivillageselector.json5 directly:\n\n" +
+                            "\"blacklisted_structures\": [\n" +
+                            "  \"modid:structure_name\"\n" +
+                            "]")
+                    );
+                })
+                .build())
+
+            .build());
+
+        return YetAnotherConfigLib.createBuilder()
+            .title(Component.literal("Blacklisted Structures"))
+            .category(categoryBuilder.build())
+            .save(() -> {})
+            .build()
+            .generateScreen(parent);
+    }
+
+    /**
+     * Sub-screen: Structure Pool (placeholder for now)
+     */
+    private static Screen createStructurePoolScreen(Screen parent) {
+        return createMessageScreen(parent,
+            "Structure Pool Editor\n\n" +
+            "This will be a complex screen with:\n" +
+            "• Pagination\n" +
+            "• Search functionality\n" +
+            "• Left-aligned structure IDs\n" +
+            "• Expandable biome/weight editing\n\n" +
+            "Coming soon...");
+    }
+
+    /**
+     * OLD: Structures Category with inline display (kept for reference, will be removed)
+     */
+    private static ConfigCategory buildStructuresCategory_OLD(ConfigState state) {
         ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
             .name(Component.literal("Structures"))
             .tooltip(Component.literal("Configure structure pools and selection"));
