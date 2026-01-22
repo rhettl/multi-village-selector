@@ -1239,6 +1239,37 @@ public class MVSConfigScreen {
     }
 
     /**
+     * Creates a simple message screen without requiring ConfigState.
+     * Convenience wrapper around createInfoDialog.
+     */
+    private static Screen createMessageScreen(Screen parent, String message) {
+        return YetAnotherConfigLib.createBuilder()
+            .title(Component.literal("Information"))
+
+            .category(ConfigCategory.createBuilder()
+                .name(Component.literal("Message"))
+
+                .group(OptionGroup.createBuilder()
+                    .name(Component.literal(""))
+                    .description(OptionDescription.of(Component.literal(message)))
+
+                    .option(ButtonOption.createBuilder()
+                        .name(Component.literal("OK"))
+                        .action((screen, button) -> {
+                            Minecraft.getInstance().setScreen(parent);
+                        })
+                        .build())
+
+                    .build())
+
+                .build())
+
+            .save(() -> {})
+            .build()
+            .generateScreen(parent);
+    }
+
+    /**
      * Creates a confirmation screen for generating config
      */
     private static Screen createGenerateConfirmationScreen(Screen parent) {
