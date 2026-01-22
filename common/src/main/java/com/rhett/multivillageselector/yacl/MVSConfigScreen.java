@@ -21,11 +21,11 @@ import java.util.Map;
  * Uses a tabbed category layout that mirrors the JSON5 config structure.
  *
  * Categories:
- * - General (core settings, debug options)
+ * - General (core settings, operations)
  * - Structures (structure_pool, blacklist, intercepted_sets)
- * - Biomes (biome_frequency map)
+ * - Frequency (biome_frequency map)
  * - Placement (placement rules per structure set)
- * - About (info, credits, docs)
+ * - About (info, credits, debug options)
  */
 public class MVSConfigScreen {
 
@@ -135,7 +135,7 @@ public class MVSConfigScreen {
             // ========================================
             // Category: Biomes
             // ========================================
-            .category(buildBiomesCategory(state))
+            .category(buildFrequencyCategory(state))
 
             // ========================================
             // Category: Placement
@@ -426,11 +426,11 @@ public class MVSConfigScreen {
     }
 
     /**
-     * Biomes Category: biome_frequency map
+     * Frequency Category: biome_frequency map
      */
-    private static ConfigCategory buildBiomesCategory(ConfigState state) {
+    private static ConfigCategory buildFrequencyCategory(ConfigState state) {
         ConfigCategory.Builder categoryBuilder = ConfigCategory.createBuilder()
-            .name(Component.literal("Biomes"))
+            .name(Component.literal("Frequency"))
             .tooltip(Component.literal("Control spawn frequency per biome"));
 
         if (state.biomeFrequency.isEmpty()) {
