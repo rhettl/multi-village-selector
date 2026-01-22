@@ -38,7 +38,7 @@ dependencies {
     modApi "dev.architectury:architectury-neoforge:${rootProject.architectury_version}"
 
     // Optional config GUI
-    modCompileOnly "dev.isxander:yet-another-config-lib-neoforge:${rootProject.yacl_neoforge_version}"
+    modCompileOnly "dev.isxander:yet-another-config-lib:${rootProject.yacl_neoforge_version}"
 
     // Common module
     common(project(path: ":common", configuration: "namedElements")) { transitive false }
