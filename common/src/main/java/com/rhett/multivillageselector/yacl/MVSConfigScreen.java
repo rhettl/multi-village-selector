@@ -699,56 +699,98 @@ public class MVSConfigScreen {
                     "in specific biomes. Values: 0.0 (never) to 1.0 (normal).")))
 
                 .option(ButtonOption.createBuilder()
-                    .name(Component.literal("📝 Add Rules in JSON5"))
+                    .name(Component.literal("+ Add Biome Rule"))
                     .description(OptionDescription.of(Component.literal(
-                        "To add biome frequency rules:\n\n" +
-                        "Edit config/multivillageselector.json5\n" +
-                        "Add to biome_frequency section:\n\n" +
-                        "\"#minecraft:is_ocean\": 0.3  → 30% in oceans\n" +
-                        "\"minecraft:desert\": 0.8      → 80% in desert\n\n" +
-                        "Map editor coming in a future update!")))
-                    .action((screen, button) -> {})
+                        "Add a new biome frequency rule.\n\n" +
+                        "Note: Text input dialog coming soon.\n" +
+                        "For now, edit config/multivillageselector.json5:\n\n" +
+                        "\"biome_frequency\": {\n" +
+                        "  \"#minecraft:is_ocean\": 0.3,\n" +
+                        "  \"minecraft:desert\": 0.8\n" +
+                        "}")))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createMessageScreen(screen,
+                                "Add Biome Frequency Rule\n\n" +
+                                "Text input not yet implemented.\n\n" +
+                                "Please edit config/multivillageselector.json5 directly:\n\n" +
+                                "\"biome_frequency\": {\n" +
+                                "  \"biome_pattern\": 0.5\n" +
+                                "}")
+                        );
+                    })
                     .build())
 
                 .build());
         } else {
-            // Show each biome frequency rule
-            OptionGroup.Builder groupBuilder = OptionGroup.createBuilder()
-                .name(Component.literal("Biome Frequency Rules"))
-                .description(OptionDescription.of(Component.literal(
-                    String.format("%d biome rules configured\n\n" +
-                        "Values: 0.0 (never spawn) to 1.0 (normal frequency)\n" +
-                        "Biomes not listed use 100%% spawn rate.",
-                        state.biomeFrequency.size()))));
-
+            // Show each biome frequency rule with a remove button
             for (Map.Entry<String, Double> entry : state.biomeFrequency.entrySet()) {
                 final String biomePattern = entry.getKey();
                 final double initialFrequency = entry.getValue();
 
-                groupBuilder.option(Option.<Double>createBuilder()
+                categoryBuilder.group(OptionGroup.createBuilder()
                     .name(Component.literal(biomePattern))
                     .description(OptionDescription.of(Component.literal(
-                        String.format("Spawn frequency multiplier\n\n" +
-                            "%s\n\n" +
+                        getBiomePatternExplanation(biomePattern))))
+
+                    .option(Option.<Double>createBuilder()
+                        .name(Component.literal("Frequency"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Spawn frequency multiplier\n\n" +
                             "Values:\n" +
                             "• 0.0 = Never spawn\n" +
-                            "• 0.5 = 50%% spawn rate\n" +
-                            "• 1.0 = Normal (100%%) spawn rate\n\n" +
-                            "Drag the slider to adjust the spawn frequency.",
-                            getBiomePatternExplanation(biomePattern)))))
-                    .binding(
-                        initialFrequency,  // default
-                        () -> MVSConfig.biomeFrequency.getOrDefault(biomePattern, initialFrequency),  // getter
-                        newValue -> MVSConfigSaver.saveBiomeFrequency(biomePattern, newValue)  // setter
-                    )
-                    .controller(opt -> DoubleSliderControllerBuilder.create(opt)
-                        .range(0.0, 1.0)
-                        .step(0.05)
-                        .formatValue(val -> Component.literal(String.format("%.0f%%", val * 100))))
+                            "• 0.5 = 50% spawn rate\n" +
+                            "• 1.0 = Normal (100%) spawn rate\n\n" +
+                            "Drag the slider to adjust the spawn frequency.")))
+                        .binding(
+                            initialFrequency,  // default
+                            () -> MVSConfig.biomeFrequency.getOrDefault(biomePattern, initialFrequency),  // getter
+                            newValue -> MVSConfigSaver.saveBiomeFrequency(biomePattern, newValue)  // setter
+                        )
+                        .controller(opt -> DoubleSliderControllerBuilder.create(opt)
+                            .range(0.0, 1.0)
+                            .step(0.05)
+                            .formatValue(val -> Component.literal(String.format("%.0f%%", val * 100))))
+                        .build())
+
+                    .option(ButtonOption.createBuilder()
+                        .name(Component.literal("✗ Remove"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Remove this biome frequency rule.\n" +
+                            "Biome will revert to 100% spawn rate.")))
+                        .action((screen, button) -> {
+                            // TODO: Implement remove functionality
+                            MVSCommon.LOGGER.info("MVS: Would remove biome frequency rule: {}", biomePattern);
+                        })
+                        .build())
+
                     .build());
             }
 
-            categoryBuilder.group(groupBuilder.build());
+            // Add new rule button at the bottom
+            categoryBuilder.group(OptionGroup.createBuilder()
+                .name(Component.literal("Actions"))
+
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("+ Add Biome Rule"))
+                    .description(OptionDescription.of(Component.literal(
+                        "Add a new biome frequency rule.\n\n" +
+                        "Note: Text input dialog coming soon.\n" +
+                        "For now, edit config/multivillageselector.json5.")))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createMessageScreen(screen,
+                                "Add Biome Frequency Rule\n\n" +
+                                "Text input not yet implemented.\n\n" +
+                                "Edit config/multivillageselector.json5:\n\n" +
+                                "\"biome_frequency\": {\n" +
+                                "  \"biome_pattern\": 0.5\n" +
+                                "}")
+                        );
+                    })
+                    .build())
+
+                .build());
         }
 
         return categoryBuilder.build();
@@ -790,13 +832,25 @@ public class MVSConfigScreen {
                     "• exclusion_zone - Avoid other structure sets")))
 
                 .option(ButtonOption.createBuilder()
-                    .name(Component.literal("📝 Add Rules in JSON5"))
+                    .name(Component.literal("+ Add Placement Rule"))
                     .description(OptionDescription.of(Component.literal(
-                        "To configure placement rules:\n\n" +
-                        "Edit config/multivillageselector.json5\n" +
-                        "Add to placement section.\n\n" +
-                        "Object editor coming in a future update!")))
-                    .action((screen, button) -> {})
+                        "Add a placement rule for a structure set.\n\n" +
+                        "Note: Dialog coming soon.\n" +
+                        "For now, edit config/multivillageselector.json5.")))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createMessageScreen(screen,
+                                "Add Placement Rule\n\n" +
+                                "Not yet implemented.\n\n" +
+                                "Edit config/multivillageselector.json5:\n\n" +
+                                "\"placement\": {\n" +
+                                "  \"minecraft:villages\": {\n" +
+                                "    \"spacing\": 34,\n" +
+                                "    \"separation\": 8\n" +
+                                "  }\n" +
+                                "}")
+                        );
+                    })
                     .build())
 
                 .build());
@@ -935,8 +989,48 @@ public class MVSConfigScreen {
                         .controller(opt -> StringControllerBuilder.create(opt))
                         .build())
 
+                    // Remove button
+                    .option(ButtonOption.createBuilder()
+                        .name(Component.literal("✗ Remove Rule"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Remove this placement rule.\n" +
+                            "Structure set will revert to vanilla placement defaults.")))
+                        .action((screen, button) -> {
+                            // TODO: Implement remove functionality
+                            MVSCommon.LOGGER.info("MVS: Would remove placement rule for: {}", structureSet);
+                        })
+                        .build())
+
                     .build());
             }
+
+            // Add new rule button at the bottom
+            categoryBuilder.group(OptionGroup.createBuilder()
+                .name(Component.literal("Actions"))
+
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("+ Add Placement Rule"))
+                    .description(OptionDescription.of(Component.literal(
+                        "Add a placement rule for a structure set.\n\n" +
+                        "Note: Dialog coming soon.\n" +
+                        "For now, edit config/multivillageselector.json5.")))
+                    .action((screen, button) -> {
+                        Minecraft.getInstance().setScreen(
+                            createMessageScreen(screen,
+                                "Add Placement Rule\n\n" +
+                                "Not yet implemented.\n\n" +
+                                "Edit config/multivillageselector.json5:\n\n" +
+                                "\"placement\": {\n" +
+                                "  \"minecraft:villages\": {\n" +
+                                "    \"spacing\": 34,\n" +
+                                "    \"separation\": 8\n" +
+                                "  }\n" +
+                                "}")
+                        );
+                    })
+                    .build())
+
+                .build());
         }
 
         return categoryBuilder.build();
