@@ -42,7 +42,7 @@ dependencies {
     modCompileOnly("dev.isxander:yet-another-config-lib:${rootProject.yacl_version}") {
         transitive = false
     }
-    modCompileOnly("com.terraformersmc:modmenu:11.0.3") {
+    modCompileOnly("com.terraformersmc:modmenu:${rootProject.modmenu_version}") {
         transitive = false
     }
 

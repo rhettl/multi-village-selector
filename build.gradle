@@ -42,6 +42,10 @@ subprojects {
             url "https://maven.isxander.dev/releases"
             name "Xander Maven"
         }
+        maven {
+            url "https://maven.terraformersmc.com/releases"
+            name "TerraformersMC Maven"
+        }
     }
 
     dependencies {
