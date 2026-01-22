@@ -201,6 +201,28 @@ public class MVSConfigScreen {
 
                 .build())
 
+            // Group: Operations
+            .group(OptionGroup.createBuilder()
+                .name(Component.literal("Operations"))
+                .description(OptionDescription.of(Component.literal(
+                    "Actions and utilities for managing your configuration")))
+
+                .option(ButtonOption.createBuilder()
+                    .name(Component.literal("Generate Config"))
+                    .description(OptionDescription.of(Component.literal(
+                        "Generate a fresh configuration file based on detected mods.\n\n" +
+                        "⚠️ Warning: This will overwrite your existing config!\n" +
+                        "A backup will be created automatically.")))
+                    .action((screen, button) -> {
+                        // Show confirmation screen
+                        Minecraft.getInstance().setScreen(
+                            createGenerateConfirmationScreen(screen)
+                        );
+                    })
+                    .build())
+
+                .build())
+
             .build();
     }
 
@@ -853,6 +875,67 @@ public class MVSConfigScreen {
 
                     .option(ButtonOption.createBuilder()
                         .name(Component.literal("OK"))
+                        .action((screen, button) -> {
+                            Minecraft.getInstance().setScreen(parent);
+                        })
+                        .build())
+
+                    .build())
+
+                .build())
+
+            .save(() -> {})
+            .build()
+            .generateScreen(parent);
+    }
+
+    /**
+     * Creates a confirmation screen for generating config
+     */
+    private static Screen createGenerateConfirmationScreen(Screen parent) {
+        return YetAnotherConfigLib.createBuilder()
+            .title(Component.literal("Generate Config - Confirmation"))
+
+            .category(ConfigCategory.createBuilder()
+                .name(Component.literal("Confirm"))
+
+                .group(OptionGroup.createBuilder()
+                    .name(Component.literal("⚠️ Warning"))
+                    .description(OptionDescription.of(Component.literal(
+                        "This will generate a fresh configuration based on detected mods.\n\n" +
+                        "Your existing config will be backed up to:\n" +
+                        "config/multi_village_selector.json5.backup\n\n" +
+                        "Are you sure you want to continue?")))
+
+                    .option(ButtonOption.createBuilder()
+                        .name(Component.literal("✓ Yes, Generate Config"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Proceed with config generation and backup")))
+                        .action((screen, button) -> {
+                            // Perform generation
+                            boolean success = MVSConfig.generateConfig();
+                            if (success) {
+                                Minecraft.getInstance().setScreen(
+                                    createMessageScreen(parent,
+                                        "Config generated successfully!\n\n" +
+                                        "Previous config backed up to:\n" +
+                                        "multi_village_selector.json5.backup\n\n" +
+                                        "Please restart Minecraft for changes to take effect.")
+                                );
+                            } else {
+                                Minecraft.getInstance().setScreen(
+                                    createMessageScreen(parent,
+                                        "Failed to generate config.\n\n" +
+                                        "Check the logs for more details.")
+                                );
+                            }
+                        })
+                        .build())
+
+                    .option(ButtonOption.createBuilder()
+                        .name(Component.literal("✗ Cancel"))
+                        .description(OptionDescription.of(Component.literal(
+                            "Return to config screen without generating")))
                         .action((screen, button) -> {
                             Minecraft.getInstance().setScreen(parent);
                         })

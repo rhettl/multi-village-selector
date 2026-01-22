@@ -239,6 +239,45 @@ public class MVSConfig {
     }
 
     /**
+     * Generates a fresh config file with backup.
+     * Backs up existing config to .backup, then creates new default config.
+     *
+     * @return true if successful, false if failed
+     */
+    public static boolean generateConfig() {
+        try {
+            Path configDir = Platform.getConfigFolder();
+            Path configFile = configDir.resolve("multivillageselector.json5");
+            Path backupFile = configDir.resolve("multivillageselector.json5.backup");
+
+            MVSCommon.LOGGER.info("MVS: Generating fresh config...");
+
+            // Backup existing config if it exists
+            if (Files.exists(configFile)) {
+                MVSCommon.LOGGER.info("MVS: Backing up existing config to: {}", backupFile);
+                Files.copy(configFile, backupFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+
+            // Delete existing config
+            if (Files.exists(configFile)) {
+                Files.delete(configFile);
+                MVSCommon.LOGGER.info("MVS: Deleted old config: {}", configFile);
+            }
+
+            // Create new default config by calling loadOrCreate which will generate it
+            MVSCommon.LOGGER.info("MVS: Creating new default config...");
+            ConfigLoader.LoadResult result = ConfigLoader.loadOrCreate();
+
+            MVSCommon.LOGGER.info("MVS: Config generated successfully at: {}", result.path);
+            return true;
+
+        } catch (Exception e) {
+            MVSCommon.LOGGER.error("MVS: Failed to generate config", e);
+            return false;
+        }
+    }
+
+    /**
      * Converts a wildcard pattern to a regex pattern.
      * Examples:
      *   "ctov:*" → "ctov:.*"
