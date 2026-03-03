@@ -65,7 +65,7 @@ public abstract class LocateCommandMixin {
 
         // Convert ResourceOrTagKeyArgument.Result to HolderSet for processing
         Registry<Structure> registry = source.getLevel().registryAccess().registryOrThrow(Registries.STRUCTURE);
-        Optional<HolderSet<Structure>> holderSetOpt = getHolders(structureArg, registry);
+        Optional<HolderSet<Structure>> holderSetOpt = resolveMvsHolders(structureArg, registry);
         if (holderSetOpt.isEmpty()) {
             return; // Let vanilla handle (will throw error)
         }
@@ -98,7 +98,7 @@ public abstract class LocateCommandMixin {
      * Mirrors vanilla's getHolders logic.
      */
     @SuppressWarnings("unchecked")
-    private static Optional<HolderSet<Structure>> getHolders(
+    private static Optional<HolderSet<Structure>> resolveMvsHolders(
             ResourceOrTagKeyArgument.Result<Structure> result,
             Registry<Structure> registry) {
         // Use Either.map with explicit function types to help type inference
