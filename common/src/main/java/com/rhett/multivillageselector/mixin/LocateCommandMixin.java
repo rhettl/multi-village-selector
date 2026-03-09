@@ -31,6 +31,7 @@ import net.minecraft.world.level.biome.Climate;
 import net.minecraft.world.level.levelgen.structure.Structure;
 
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
@@ -97,6 +98,7 @@ public abstract class LocateCommandMixin {
      * Convert ResourceOrTagKeyArgument.Result to HolderSet.
      * Mirrors vanilla's getHolders logic.
      */
+    @Unique
     @SuppressWarnings("unchecked")
     private static Optional<HolderSet<Structure>> resolveMvsHolders(
             ResourceOrTagKeyArgument.Result<Structure> result,
@@ -112,6 +114,7 @@ public abstract class LocateCommandMixin {
      * Check if any structure in the HolderSet is MVS-controlled.
      * Returns the first MVS-controlled structure ID found.
      */
+    @Unique
     private static Optional<String> findMVSControlledStructure(HolderSet<Structure> structures) {
         for (Holder<Structure> holder : structures) {
             Optional<ResourceLocation> keyOpt = holder.unwrapKey().map(k -> k.location());
@@ -134,6 +137,7 @@ public abstract class LocateCommandMixin {
     /**
      * Execute MVS-aware locate for a structure.
      */
+    @Unique
     private static int executeMVSLocate(CommandSourceStack source, String structureId) throws CommandSyntaxException {
         ServerLevel level = source.getLevel();
         BlockPos startPos = BlockPos.containing(source.getPosition());
@@ -184,6 +188,7 @@ public abstract class LocateCommandMixin {
     /**
      * Send locate result in vanilla-compatible format.
      */
+    @Unique
     private static int sendLocateResult(
             CommandSourceStack source,
             String structureId,
@@ -227,6 +232,7 @@ public abstract class LocateCommandMixin {
     /**
      * Get the structure set ID for a given structure.
      */
+    @Unique
     private static String getStructureSetForStructure(String structureId) {
         if (!MVSConfig.interceptStructureSets.isEmpty()) {
             return MVSConfig.interceptStructureSets.get(0);
