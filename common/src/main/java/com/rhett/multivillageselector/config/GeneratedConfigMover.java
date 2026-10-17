@@ -4,6 +4,9 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 
 /**
  * Moves a generated config into the live config directory.
@@ -22,11 +25,33 @@ public final class GeneratedConfigMover {
         return Files.isRegularFile(generated);
     }
 
+    /** Always backs up an existing target. */
+    public static Result apply(Path generated, Path target, String backupSuffix) throws IOException {
+        return apply(generated, target, backupSuffix, null);
+    }
+
+    /**
+     * True if {@code existing} is byte-for-byte the default config MVS wrote at init (SHA-256 match).
+     */
+    public static boolean isUnmodifiedDefault(byte[] existing, byte[] bundledDefault) {
+        return bundledDefault != null && Arrays.equals(sha256(existing), sha256(bundledDefault));
+    }
+
+    private static byte[] sha256(byte[] data) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(data);
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 is always available", e);
+        }
+    }
+
     /**
      * Move {@code generated} to {@code target}. An existing target is kept as
-     * {@code <name>.bak-<backupSuffix>} next to it, never silently overwritten.
+     * {@code <name>.bak-<backupSuffix>} next to it, never silently overwritten, unless it is just
+     * the untouched {@code bundledDefault} by hash (nothing of the admin's to lose; may be null).
      */
-    public static Result apply(Path generated, Path target, String backupSuffix) throws IOException {
+    public static Result apply(Path generated, Path target, String backupSuffix, byte[] bundledDefault)
+            throws IOException {
         if (!hasGenerated(generated)) {
             return new Result(Status.SOURCE_MISSING, null);
         }
@@ -37,7 +62,7 @@ public final class GeneratedConfigMover {
         }
 
         Path backup = null;
-        if (Files.exists(target)) {
+        if (Files.exists(target) && !isUnmodifiedDefault(Files.readAllBytes(target), bundledDefault)) {
             backup = target.resolveSibling(target.getFileName() + ".bak-" + backupSuffix);
             Files.copy(target, backup, StandardCopyOption.REPLACE_EXISTING);
         }

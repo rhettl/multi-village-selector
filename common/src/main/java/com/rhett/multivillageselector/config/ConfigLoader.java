@@ -71,6 +71,15 @@ public class ConfigLoader {
     }
 
     /**
+     * The bundled default config bytes, or null if the resource is missing.
+     */
+    public static byte[] bundledDefaultConfig() throws IOException {
+        try (InputStream in = ConfigLoader.class.getResourceAsStream(DEFAULT_CONFIG_RESOURCE)) {
+            return in == null ? null : in.readAllBytes();
+        }
+    }
+
+    /**
      * Creates default config file from bundled resource.
      * Enables debug flags in dev environment.
      *

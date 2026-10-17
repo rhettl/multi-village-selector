@@ -2,6 +2,7 @@ package com.rhett.multivillageselector.commands.generate;
 
 import com.mojang.brigadier.context.CommandContext;
 import com.rhett.multivillageselector.MVSCommon;
+import com.rhett.multivillageselector.config.ConfigLoader;
 import com.rhett.multivillageselector.config.GeneratedConfigMover;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
@@ -59,7 +60,7 @@ public class GenerateCommands {
         source.sendSuccess(() -> Component.literal("Generated file: ")
             .withStyle(ChatFormatting.GRAY)
             .append(Component.literal(GENERATED_PATH.toString()).withStyle(ChatFormatting.AQUA)), false);
-        source.sendSuccess(() -> Component.literal("If " + CONFIG_PATH + " exists, it is backed up first.")
+        source.sendSuccess(() -> Component.literal("If " + CONFIG_PATH + " has your own changes, it is backed up first.")
             .withStyle(ChatFormatting.GRAY), false);
         source.sendSuccess(() -> Component.literal("[Confirm, move now]")
             .withStyle(ChatFormatting.RED, ChatFormatting.BOLD)
@@ -76,7 +77,8 @@ public class GenerateCommands {
 
         try {
             String stamp = LocalDateTime.now().format(BACKUP_STAMP);
-            GeneratedConfigMover.Result result = GeneratedConfigMover.apply(GENERATED_PATH, CONFIG_PATH, stamp);
+            GeneratedConfigMover.Result result = GeneratedConfigMover.apply(
+                GENERATED_PATH, CONFIG_PATH, stamp, ConfigLoader.bundledDefaultConfig());
 
             if (result.status() == GeneratedConfigMover.Status.SOURCE_MISSING) {
                 return sendMissing(source);

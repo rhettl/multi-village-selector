@@ -192,7 +192,7 @@ Loader entry points: `neoforge/.../neoforge/MultiVillageSelector.java`, `fabric/
 /mvs help                                  # Show all commands
 /mvs generate                              # Generate config from mods -> chat button
 /mvs generate do-confirm                   # Warning + "Confirm, move now" button (moves nothing)
-/mvs generate apply                        # Move local/mvs/ file to config/ (backs up existing)
+/mvs generate apply                        # Move local/mvs/ file to config/ (backs up existing unless it is the untouched default)
 /mvs biome                                 # Current biome info
 
 # Structure inspection

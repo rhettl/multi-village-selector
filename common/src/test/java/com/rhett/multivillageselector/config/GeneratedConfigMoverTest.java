@@ -73,4 +73,42 @@ class GeneratedConfigMoverTest {
         Files.writeString(generated, "x");
         assertTrue(GeneratedConfigMover.hasGenerated(generated));
     }
+
+    private static final String DEFAULT_TEXT = "{\n  enabled: true,\n  debug_cmd: false,\n  debug_logging: false,\n}\n";
+    private static final byte[] DEFAULT = DEFAULT_TEXT.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+
+    private GeneratedConfigMover.Result applyOver(String existing) throws IOException {
+        Path generated = tmp.resolve("local/mvs/multivillageselector.json5");
+        Path target = tmp.resolve("config/multivillageselector.json5");
+        Files.createDirectories(generated.getParent());
+        Files.createDirectories(target.getParent());
+        Files.writeString(generated, "generated");
+        Files.writeString(target, existing);
+        return GeneratedConfigMover.apply(generated, target, "t1", DEFAULT);
+    }
+
+    @Test
+    @DisplayName("apply: no backup when the existing config is the untouched default")
+    void noBackupForDefault() throws IOException {
+        GeneratedConfigMover.Result result = applyOver(DEFAULT_TEXT);
+        assertEquals(GeneratedConfigMover.Status.MOVED, result.status());
+        assertNull(result.backup());
+        assertEquals("generated", Files.readString(tmp.resolve("config/multivillageselector.json5")));
+    }
+
+    @Test
+    @DisplayName("apply: backs up a config that differs from the default")
+    void backupWhenEdited() throws IOException {
+        GeneratedConfigMover.Result result = applyOver(DEFAULT_TEXT.replace("enabled: true", "enabled: false"));
+        assertNotNull(result.backup());
+        assertTrue(Files.readString(result.backup()).contains("enabled: false"));
+    }
+
+    @Test
+    @DisplayName("isUnmodifiedDefault: matches identical bytes only; null default never matches")
+    void hashCompare() {
+        assertTrue(GeneratedConfigMover.isUnmodifiedDefault(DEFAULT, DEFAULT.clone()));
+        assertFalse(GeneratedConfigMover.isUnmodifiedDefault(DEFAULT_TEXT.concat(" ").getBytes(), DEFAULT));
+        assertFalse(GeneratedConfigMover.isUnmodifiedDefault(DEFAULT, null));
+    }
 }
