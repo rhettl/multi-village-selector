@@ -89,7 +89,7 @@ After running, a description of where the file is located and a link to open it 
 Shows MVS status at a glance.
 
 ```
-=== Multi Village Selector v0.4.0 ===
+=== Multi Village Selector v0.4.2 ===
 
 Status: ENABLED
 Pool Size: 47 structures
