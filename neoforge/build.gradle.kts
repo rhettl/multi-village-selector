@@ -90,7 +90,10 @@ tasks.register("syncDevMods") {
 
 dependencies {
     minecraft("com.mojang:minecraft:${rootProject.property("minecraft_version")}")
-    mappings(loom.officialMojangMappings())
+    mappings(loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${rootProject.property("minecraft_version")}:${rootProject.property("parchment_version")}@zip")
+    })
     neoForge("net.neoforged:neoforge:${rootProject.property("neoforge_version")}")
     "modApi"("dev.architectury:architectury-neoforge:${rootProject.property("architectury_version")}")
 

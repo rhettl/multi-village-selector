@@ -25,7 +25,10 @@ tasks {
 
 dependencies {
     minecraft("com.mojang:minecraft:${rootProject.property("minecraft_version")}")
-    mappings(loom.officialMojangMappings())
+    mappings(loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${rootProject.property("minecraft_version")}:${rootProject.property("parchment_version")}@zip")
+    })
 
     "modImplementation"("dev.architectury:architectury:${rootProject.property("architectury_version")}")
 

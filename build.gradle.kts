@@ -34,6 +34,7 @@ allprojects {
         mavenCentral()
         maven { url = uri("https://maven.architectury.dev/") }
         maven { url = uri("https://maven.neoforged.net/releases/") }
+        maven { url = uri("https://maven.parchmentmc.org") }
     }
 
     dependencies {

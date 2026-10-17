@@ -40,7 +40,10 @@ val shadowBundle: Configuration by configurations.creating {
 
 dependencies {
     minecraft("com.mojang:minecraft:${rootProject.property("minecraft_version")}")
-    mappings(loom.officialMojangMappings())
+    mappings(loom.layered {
+        officialMojangMappings()
+        parchment("org.parchmentmc.data:parchment-${rootProject.property("minecraft_version")}:${rootProject.property("parchment_version")}@zip")
+    })
 
     "modImplementation"("net.fabricmc:fabric-loader:${rootProject.property("fabric_loader_version")}")
     "modApi"("net.fabricmc.fabric-api:fabric-api:${rootProject.property("fabric_api_version")}")
