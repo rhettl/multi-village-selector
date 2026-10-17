@@ -13,8 +13,6 @@ import net.minecraft.network.chat.MutableComponent;
 
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 
 /**
  * Handles /mvs generate and its two-step apply flow:
@@ -24,8 +22,6 @@ public class GenerateCommands {
 
     public static final Path GENERATED_PATH = Paths.get("local/mvs/multivillageselector.json5");
     public static final Path CONFIG_PATH = Paths.get("config/multivillageselector.json5");
-
-    private static final DateTimeFormatter BACKUP_STAMP = DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
 
     public static int execute(CommandContext<CommandSourceStack> context) {
         // TODO: Extract ~627 lines of generate logic from MVSCommands
@@ -76,9 +72,8 @@ public class GenerateCommands {
         CommandSourceStack source = context.getSource();
 
         try {
-            String stamp = LocalDateTime.now().format(BACKUP_STAMP);
             GeneratedConfigMover.Result result = GeneratedConfigMover.apply(
-                GENERATED_PATH, CONFIG_PATH, stamp, ConfigLoader.bundledDefaultConfig());
+                GENERATED_PATH, CONFIG_PATH, ConfigLoader.bundledDefaultConfig());
 
             if (result.status() == GeneratedConfigMover.Status.SOURCE_MISSING) {
                 return sendMissing(source);

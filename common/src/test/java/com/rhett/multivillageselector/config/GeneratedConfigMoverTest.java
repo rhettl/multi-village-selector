@@ -23,7 +23,7 @@ class GeneratedConfigMoverTest {
         Files.createDirectories(target.getParent());
         Files.writeString(target, "existing");
 
-        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target, "t1");
+        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target);
 
         assertEquals(GeneratedConfigMover.Status.SOURCE_MISSING, result.status());
         assertEquals("existing", Files.readString(target));
@@ -38,7 +38,7 @@ class GeneratedConfigMoverTest {
         Files.createDirectories(generated.getParent());
         Files.writeString(generated, "generated");
 
-        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target, "t1");
+        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target);
 
         assertEquals(GeneratedConfigMover.Status.MOVED, result.status());
         assertNull(result.backup());
@@ -56,13 +56,13 @@ class GeneratedConfigMoverTest {
         Files.writeString(generated, "generated");
         Files.writeString(target, "my tuned config");
 
-        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target, "t1");
+        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target);
 
         assertEquals(GeneratedConfigMover.Status.MOVED, result.status());
         assertEquals("generated", Files.readString(target));
         assertNotNull(result.backup());
         assertEquals("my tuned config", Files.readString(result.backup()));
-        assertEquals("multivillageselector.json5.bak-t1", result.backup().getFileName().toString());
+        assertEquals("multivillageselector.json5.bak", result.backup().getFileName().toString());
     }
 
     @Test
@@ -84,7 +84,7 @@ class GeneratedConfigMoverTest {
         Files.createDirectories(target.getParent());
         Files.writeString(generated, "generated");
         Files.writeString(target, existing);
-        return GeneratedConfigMover.apply(generated, target, "t1", DEFAULT);
+        return GeneratedConfigMover.apply(generated, target, DEFAULT);
     }
 
     @Test
@@ -110,5 +110,26 @@ class GeneratedConfigMoverTest {
         assertTrue(GeneratedConfigMover.isUnmodifiedDefault(DEFAULT, DEFAULT.clone()));
         assertFalse(GeneratedConfigMover.isUnmodifiedDefault(DEFAULT_TEXT.concat(" ").getBytes(), DEFAULT));
         assertFalse(GeneratedConfigMover.isUnmodifiedDefault(DEFAULT, null));
+    }
+
+    @Test
+    @DisplayName("apply: a second backup replaces the first, keeping a single .bak")
+    void singleBackup() throws IOException {
+        Path generated = tmp.resolve("local/mvs/multivillageselector.json5");
+        Path target = tmp.resolve("config/multivillageselector.json5");
+        Files.createDirectories(generated.getParent());
+        Files.createDirectories(target.getParent());
+
+        Files.writeString(target, "first config");
+        Files.writeString(generated, "gen 1");
+        GeneratedConfigMover.apply(generated, target);
+
+        Files.writeString(generated, "gen 2");
+        GeneratedConfigMover.Result result = GeneratedConfigMover.apply(generated, target);
+
+        assertEquals("gen 1", Files.readString(result.backup()));
+        try (var files = Files.list(target.getParent())) {
+            assertEquals(2, files.count(), "config + one .bak only");
+        }
     }
 }

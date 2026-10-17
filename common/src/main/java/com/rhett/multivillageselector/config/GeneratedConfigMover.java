@@ -26,8 +26,8 @@ public final class GeneratedConfigMover {
     }
 
     /** Always backs up an existing target. */
-    public static Result apply(Path generated, Path target, String backupSuffix) throws IOException {
-        return apply(generated, target, backupSuffix, null);
+    public static Result apply(Path generated, Path target) throws IOException {
+        return apply(generated, target, null);
     }
 
     /**
@@ -47,10 +47,10 @@ public final class GeneratedConfigMover {
 
     /**
      * Move {@code generated} to {@code target}. An existing target is kept as
-     * {@code <name>.bak-<backupSuffix>} next to it, never silently overwritten, unless it is just
+     * {@code <name>.bak} next to it (only the latest backup is kept), never silently overwritten, unless it is just
      * the untouched {@code bundledDefault} by hash (nothing of the admin's to lose; may be null).
      */
-    public static Result apply(Path generated, Path target, String backupSuffix, byte[] bundledDefault)
+    public static Result apply(Path generated, Path target, byte[] bundledDefault)
             throws IOException {
         if (!hasGenerated(generated)) {
             return new Result(Status.SOURCE_MISSING, null);
@@ -63,7 +63,7 @@ public final class GeneratedConfigMover {
 
         Path backup = null;
         if (Files.exists(target) && !isUnmodifiedDefault(Files.readAllBytes(target), bundledDefault)) {
-            backup = target.resolveSibling(target.getFileName() + ".bak-" + backupSuffix);
+            backup = target.resolveSibling(target.getFileName() + ".bak");
             Files.copy(target, backup, StandardCopyOption.REPLACE_EXISTING);
         }
 
