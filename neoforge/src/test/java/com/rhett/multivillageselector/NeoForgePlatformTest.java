@@ -1,5 +1,6 @@
 package com.rhett.multivillageselector;
 
+import com.rhett.multivillageselector.neoforge.MultiVillageSelector;
 import net.neoforged.fml.common.Mod;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

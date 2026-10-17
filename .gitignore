@@ -30,6 +30,7 @@ out/
 
 # Minecraft run directories (if you test locally)
 run/
+run-integration/
 logs/
 minecraft/
 
@@ -47,3 +48,4 @@ dev-docs/
 # Test scripts (for local testing only)
 build-test*.sh
 registry_dumps.txt
+.reference/

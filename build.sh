@@ -1,7 +1,7 @@
 #!/bin/zsh
 
 # Clean and build the mod (clean ensures only one JAR in build/libs/)
-# Tests run automatically (145 tests, ~6s)
+# Tests run automatically (223 tests)
 ./gradlew clean build -Pdevelopment='true'
 
 # === NeoForge ===

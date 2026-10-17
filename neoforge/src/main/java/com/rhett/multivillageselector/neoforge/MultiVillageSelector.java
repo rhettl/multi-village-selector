@@ -1,5 +1,6 @@
-package com.rhett.multivillageselector;
+package com.rhett.multivillageselector.neoforge;
 
+import com.rhett.multivillageselector.MVSCommon;
 import net.neoforged.fml.common.Mod;
 
 /**
