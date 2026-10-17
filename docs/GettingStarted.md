@@ -94,7 +94,7 @@ In-game, the `/mvs generate` command scans all your installed mods and creates a
 
 3. **Review the generated file** - it contains all detected village structures with normalized weights. It makes some **guesses** and may miss some structures or be wrong about some weights -- **Please review before using.**
 
-4. **Move it to your config folder** - located at `<minecraft-instance>/config`
+4. **Move it to your config folder** - located at `<minecraft-instance>/config`. Either do it yourself, or click **[Apply changes now]** in chat, read the warning, then click **[Confirm, move now]**. Any existing config is backed up first.
 
 5. **Restart Minecraft** to apply the new config
 

@@ -29,7 +29,7 @@ When you install multiple village mods (Cobblemon Additions, ChoiceTheorem's Ove
 2. **Launch** Minecraft and load a world
 3. **Run** `/mvs generate` in-game to scan your installed mods
 4. **Review** the generated config at `local/mvs/multivillageselector.json5`
-5. **Move** the config to `config/multivillageselector.json5`
+5. **Move** the config to `config/multivillageselector.json5` (or click **[Apply changes now]** in chat and confirm)
 6. **Restart** Minecraft to apply changes
 
 That's it! Villages from all your mods will now spawn with weighted representation -- but be sure to look over the weights, the generator makes some guesses and isn't perfect.
@@ -72,7 +72,7 @@ See the **[Configuration Guide](https://github.com/RhettL/multi-village-selector
 ## Commands
 
 ```bash
-/mvs generate              # Scan mods and generate config
+/mvs generate              # Scan mods and generate config (then click to apply)
 /mvs biome                 # Show current biome info
 /mvs locate <structure>    # Find nearest structure with teleport links
 /mvs structure biomes <id> # Show biome rules for a structure

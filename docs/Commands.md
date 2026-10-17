@@ -76,9 +76,20 @@ After running, a description of where the file is located and a link to open it 
 ```
 /mvs generate
 → Review local/mvs/multivillageselector.json5
-→ Copy to config/multivillageselector.json5
+→ Click [Apply changes now]   (runs /mvs generate do-confirm)
+→ Read the warning, click [Confirm, move now]   (runs /mvs generate apply)
 → Restart Minecraft (or /mvs config reload)
 ```
+
+You can also copy the file to `config/multivillageselector.json5` yourself.
+
+### /mvs generate do-confirm
+
+Shows a warning that the generated list can be wrong and should be reviewed first, with a **[Confirm, move now]** button. Moves nothing.
+
+### /mvs generate apply
+
+Moves `local/mvs/multivillageselector.json5` to `config/multivillageselector.json5`. Fails with a message if the generated file isn't there. An existing config is saved first as `multivillageselector.json5.bak-<timestamp>`.
 
 **Important:** Always review the config generated. As the user, you are in control of weights and structures. The generated config is a recommendation and a **guess** at best. You are responsible for the weights and structure selections -- MVS can only follow your direction.
 

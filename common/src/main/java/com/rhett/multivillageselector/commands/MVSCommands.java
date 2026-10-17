@@ -74,6 +74,12 @@ public class MVSCommands {
             )
             .then(Commands.literal("generate")
                 .executes(GenerateCommands::execute)
+                .then(Commands.literal("do-confirm")
+                    .executes(GenerateCommands::executeDoConfirm)
+                )
+                .then(Commands.literal("apply")
+                    .executes(GenerateCommands::executeApply)
+                )
             )
             .then(Commands.literal("config")
                 .then(Commands.literal("reload")
@@ -255,7 +261,7 @@ public class MVSCommands {
         source.sendSuccess(() -> Component.literal("── Core ──").withStyle(ChatFormatting.YELLOW), false);
 
         helpEntry(source, "/mvs info", "Show MVS status and placement settings");
-        helpEntry(source, "/mvs generate", "Generate config from installed mods");
+        helpEntry(source, "/mvs generate", "Generate config from installed mods (then click to apply)");
 
         source.sendSuccess(() -> Component.literal(""), false);
         source.sendSuccess(() -> Component.literal("── Config ──").withStyle(ChatFormatting.YELLOW), false);
@@ -622,13 +628,15 @@ public class MVSCommands {
             // Next steps instructions
             source.sendSuccess(() -> Component.literal("💡 What to do next:")
                 .withStyle(ChatFormatting.GOLD), false);
-            source.sendSuccess(() -> Component.literal("  1. Open the file above to review the config")
+            source.sendSuccess(() -> Component.literal("  1. Open the file above and review the config")
                 .withStyle(ChatFormatting.GRAY), false);
             source.sendSuccess(() -> Component.literal("  2. Adjust village weights if desired (higher = more common)")
                 .withStyle(ChatFormatting.GRAY), false);
-            source.sendSuccess(() -> Component.literal("  3. Copy file to: ")
+            source.sendSuccess(() -> Component.literal("  3. When you're happy with it: ")
                 .withStyle(ChatFormatting.GRAY)
-                .append(Component.literal("config/multivillageselector.json5").withStyle(ChatFormatting.AQUA)), false);
+                .append(GenerateCommands.applyPrompt()), false);
+            source.sendSuccess(() -> Component.literal("     (or copy it to config/multivillageselector.json5 yourself)")
+                .withStyle(ChatFormatting.DARK_GRAY), false);
             source.sendSuccess(() -> Component.literal("  4. Restart Minecraft")
                 .withStyle(ChatFormatting.GRAY), false);
 
