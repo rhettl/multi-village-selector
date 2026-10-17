@@ -225,7 +225,7 @@ Loader entry points: `neoforge/.../neoforge/MultiVillageSelector.java`, `fabric/
 ## Test Coverage
 
 - **223 tests, 100% passing** (`./gradlew test`)
-- **Coverage:** Not configured (JaCoCo needs subproject setup - see roadmap)
+- **Coverage:** JaCoCo on `common` (mixins excluded), ~15% lines. `./gradlew :common:jacocoTestReport` → `common/build/reports/jacoco/test/html`. `check` enforces a 12% regression floor; raise it as logic is extracted from commands/scanner.
 - **Core logic tested:** ConfigParser (41), LocateHelper (32), BiomeRules (24), PredictionHelper (23), PatternMatcher (31), BiomePoolExpander (22), StructureScanner (17), StructurePicker (14)
 
 **Known debt (over size guidelines):** `StructureScanner` (~1650 lines), `MVSCommands` (~1420), `LocateHelper` (~800). `StructurePlacementAccessor` mixin is imported directly from several files.

@@ -7,6 +7,13 @@ on:
     branches: [ master, rc ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,16 +27,25 @@ jobs:
       with:
         distribution: 'temurin'
         java-version: '21'
-        cache: 'gradle'
+
+    - name: Validate Gradle wrapper
+      uses: gradle/actions/wrapper-validation@v4
+
+    - name: Set up Gradle
+      uses: gradle/actions/setup-gradle@v4
 
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Run tests
-      run: ./gradlew test --no-daemon
-
-    - name: Build mod
+    - name: Build, test and verify coverage
       run: ./gradlew build --no-daemon
+
+    - name: Upload coverage report
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: coverage-report
+        path: common/build/reports/jacoco/test/html/
 
     - name: Upload test results
       uses: actions/upload-artifact@v4

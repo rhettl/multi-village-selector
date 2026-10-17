@@ -1,6 +1,7 @@
 plugins {
     id("dev.architectury.loom")
     id("architectury-plugin")
+    id("jacoco")
 }
 
 base {
@@ -58,5 +59,42 @@ tasks {
         if (System.getenv("CI") != null) {
             failFast = true
         }
+
+        finalizedBy("jacocoTestReport")
+    }
+
+    named<JacocoReport>("jacocoTestReport") {
+        dependsOn(named("test"))
+        reports {
+            xml.required.set(true)
+            html.required.set(true)
+            csv.required.set(false)
+        }
+        // Mixins need a running game to exercise; they are covered by integration runs, not unit tests
+        classDirectories.setFrom(files(classDirectories.files.map {
+            fileTree(it) { exclude("**/mixin/**") }
+        }))
     }
 }
+
+jacoco {
+    toolVersion = "0.8.12"
+}
+
+// Regression floor, not a target: much of the code (commands, scanner) needs a running game.
+// Raise it as logic is extracted into pure, testable units.
+tasks.named<JacocoCoverageVerification>("jacocoTestCoverageVerification") {
+    dependsOn(tasks.named("jacocoTestReport"))
+    classDirectories.setFrom(tasks.named<JacocoReport>("jacocoTestReport").map { it.classDirectories })
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.12".toBigDecimal()
+            }
+        }
+    }
+}
+
+tasks.named("check") { dependsOn("jacocoTestCoverageVerification") }
