@@ -1022,7 +1022,7 @@ private static ScanResult categorizeStructures(
             }
 
             // Check UNLIKELY patterns
-            if (isUnlikelyByName(info.id)) {
+            if (isUnlikelyByName(info.id) || isUnlikelyBySet(setId)) {
                 continue; // Skip unlikely structures
             }
 
@@ -1081,6 +1081,29 @@ public static boolean isUnlikelyByName(String structureName) {
     };
 
     for (String keyword : nonVillageKeywords) {
+        if (path.contains(keyword)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * Check if the structure_set itself is not a village set, regardless of what its structures are named.
+ * BCA places bca:village/* wharves and pokecenters in minecraft:ocean_structures; those are not villages.
+ */
+public static boolean isUnlikelyBySet(String setId) {
+    // Match the set path only, so a namespace like "ocean_mod" doesn't trigger it
+    String path = setId.toLowerCase();
+    int colonIndex = path.indexOf(':');
+    if (colonIndex >= 0) {
+        path = path.substring(colonIndex + 1);
+    }
+
+    String[] nonVillageSetKeywords = { "ocean", "monument" };
+
+    for (String keyword : nonVillageSetKeywords) {
         if (path.contains(keyword)) {
             return true;
         }

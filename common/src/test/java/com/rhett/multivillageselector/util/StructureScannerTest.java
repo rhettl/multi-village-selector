@@ -314,6 +314,29 @@ class StructureScannerTest {
         assertFalse(StructureScanner.isUnlikelyByName("bca:village/default_mid"));
     }
 
+    @Test
+    @DisplayName("isUnlikelyBySet: filters non-village structure sets even when they hold village-named structures")
+    void testIsUnlikelyBySet_NonVillageSets() {
+        // BCA ships bca:village/* wharves and pokecenters in minecraft:ocean_structures
+        assertTrue(StructureScanner.isUnlikelyBySet("minecraft:ocean_structures"));
+        assertTrue(StructureScanner.isUnlikelyBySet("minecraft:ocean_monuments"));
+    }
+
+    @Test
+    @DisplayName("isUnlikelyBySet: allows village structure sets")
+    void testIsUnlikelyBySet_VillageSets() {
+        assertFalse(StructureScanner.isUnlikelyBySet("minecraft:villages"));
+        assertFalse(StructureScanner.isUnlikelyBySet("ctov:villages"));
+        assertFalse(StructureScanner.isUnlikelyBySet("towns_and_towers:towns"));
+        assertFalse(StructureScanner.isUnlikelyBySet("bca:village_sets"));
+    }
+
+    @Test
+    @DisplayName("isUnlikelyBySet: matches the set path only, not the namespace")
+    void testIsUnlikelyBySet_IgnoresNamespace() {
+        assertFalse(StructureScanner.isUnlikelyBySet("ocean_mod:villages"));
+    }
+
     // ============================================================
     // HELPER METHODS
     // ============================================================
